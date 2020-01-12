@@ -22,9 +22,18 @@
 #define STM32_FLASH_START_ADRESS_64K  (STM32_FLASH_START_ADRESS_16K + FLASH_SIZE_GRANULARITY_16K)
 #define STM32_FLASH_START_ADRESS_128K (STM32_FLASH_START_ADRESS_64K + FLASH_SIZE_GRANULARITY_64K)
 
+
+#define STM32_EXFLASH_START_ADRESS_16M  ((uint32_t)0x08000000)
+#define FLASH_SIZE_GRANULARITY_16M   (4 * 16 * 1024 * 1024)
+
+
+
 extern const struct fal_flash_dev stm32_onchip_flash_16k;
 extern const struct fal_flash_dev stm32_onchip_flash_64k;
 extern const struct fal_flash_dev stm32_onchip_flash_128k;
+
+
+extern const struct fal_flash_dev stm32_exchip_flash_16M;
 
 /* flash device table */
 #define FAL_FLASH_DEV_TABLE                                          \
@@ -33,6 +42,8 @@ extern const struct fal_flash_dev stm32_onchip_flash_128k;
     &stm32_onchip_flash_64k,                                         \
     &stm32_onchip_flash_128k,                                        \
 }
+		//&stm32_exchip_flash_16M,																				 \
+
 /* ====================== Partition Configuration ========================== */
 #ifdef FAL_PART_HAS_TABLE_CFG
 
@@ -43,6 +54,7 @@ extern const struct fal_flash_dev stm32_onchip_flash_128k;
     {FAL_PART_MAGIC_WROD, "param",      "onchip_flash_64k",  0 , FLASH_SIZE_GRANULARITY_64K , 0}, \
     {FAL_PART_MAGIC_WROD, "app",        "onchip_flash_128k", 0 , FLASH_SIZE_GRANULARITY_128K, 0}, \
 }
+    //{FAL_PART_MAGIC_WROD, "exchip",     "exchip_flash_16M", 0 , FLASH_SIZE_GRANULARITY_16M, 0}, \
 
 #endif /* FAL_PART_HAS_TABLE_CFG */
 #endif /* _FAL_CFG_H_ */
