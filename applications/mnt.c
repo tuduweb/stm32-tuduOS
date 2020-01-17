@@ -66,14 +66,14 @@ int mnt_init(void)
 INIT_ENV_EXPORT(mnt_init);
 
 #include <rtdbg.h>
-#define FS_PARTITION_NAME  "filesystem"
+#define FS_PARTITION_NAME  "exchip0"
 
 int flash_init()
 {
     /* 初始化 fal 功能 */
     fal_init();
-
-    /* 在 spi flash 中名为 "filesystem" 的分区上创建一个块设备 */
+	
+    /* 在 spi flash 中名为 "exchip0" 的分区上创建一个块设备 */
     struct rt_device *flash_dev = fal_blk_device_create(FS_PARTITION_NAME);
     if (flash_dev == NULL)
     {

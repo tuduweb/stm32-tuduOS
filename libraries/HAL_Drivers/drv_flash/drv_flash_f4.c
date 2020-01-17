@@ -331,6 +331,10 @@ const struct fal_flash_dev stm32_onchip_flash_16k = { "onchip_flash_16k", STM32_
 const struct fal_flash_dev stm32_onchip_flash_64k = { "onchip_flash_64k", STM32_FLASH_START_ADRESS_64K, FLASH_SIZE_GRANULARITY_64K, (64 * 1024), {NULL, fal_flash_read_64k, fal_flash_write_64k, fal_flash_erase_64k} };
 const struct fal_flash_dev stm32_onchip_flash_128k = { "onchip_flash_128k", STM32_FLASH_START_ADRESS_128K, FLASH_SIZE_GRANULARITY_128K, (128 * 1024), {NULL, fal_flash_read_128k, fal_flash_write_128k, fal_flash_erase_128k} };
 
+const struct fal_flash_dev stm32_onchip_flash = { "onchip_flash", STM32_FLASH_START_ADRESS_1M, FLASH_SIZE_GRANULARITY_1M, 4096, {NULL, fal_flash_read_128k, fal_flash_write_128k, fal_flash_erase_128k} };
+
+
+
 static int fal_flash_read_16k(long offset, rt_uint8_t *buf, size_t size)
 {
     return stm32_flash_read(stm32_onchip_flash_16k.addr + offset, buf, size);
