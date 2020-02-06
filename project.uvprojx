@@ -467,6 +467,11 @@
               <FileType>1</FileType>
               <FilePath>applications\mnt.c</FilePath>
             </File>
+            <File>
+              <FileName>comm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\comm.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

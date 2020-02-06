@@ -136,7 +136,7 @@ static rt_err_t _rym_do_handshake(
                 RYM_CHD_INTV_TICK);
         if (code == RYM_CODE_SOH)
         {
-            data_sz = _RYM_SOH_PKG_SZ;
+            data_sz = _RYM_SOH_PKG_SZ;//SOH  00 FF  filename[ ] filezise[ ]  NUL[ ] CRCH CRCL 表示这个数据帧中包含着128字节的数据部分
             break;
         }
         else if(code == RYM_CODE_STX)
@@ -147,7 +147,7 @@ static rt_err_t _rym_do_handshake(
     }
     if (i == tm_sec)
     {
-        return -RYM_ERR_TMO;
+        return -RYM_ERR_TMO;//超时
     }
 
     /* receive all data */
@@ -391,7 +391,7 @@ rt_err_t rym_recv_on_device(
     /* no data should be received before the device has been fully setted up.
      */
     int_lvl = rt_hw_interrupt_disable();
-    rt_device_set_rx_indicate(dev, _rym_rx_ind);
+    rt_device_set_rx_indicate(dev, _rym_rx_ind);//设置接收回调函数
 
     odev_flag = dev->flag;
     /* make sure the device don't change the content. */
