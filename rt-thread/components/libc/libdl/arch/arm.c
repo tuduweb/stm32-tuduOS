@@ -12,7 +12,7 @@
 #include "../dlelf.h"
 
 #ifdef __arm__
-int dlmodule_relocate(struct rt_dlmodule *module, Elf32_Rel *rel, Elf32_Addr sym_val)
+int dlmodule_relocate(struct rt_dlmodule *module, Elf32_Rel *rel, Elf32_Addr sym_val)//module object,relocate item,段首地址
 {
     Elf32_Addr *where, tmp;
     Elf32_Sword addend, offset;
@@ -33,7 +33,7 @@ int dlmodule_relocate(struct rt_dlmodule *module, Elf32_Rel *rel, Elf32_Addr sym
     case R_ARM_PC24:
     case R_ARM_PLT32:
     case R_ARM_CALL:
-    case R_ARM_JUMP24:
+    case R_ARM_JUMP24://四个,都是直接寻址的重定向类型，直接寻址长度不能超过32MB, 即符号的调用位置和存储位置之间的间隔不能超过32M
         addend = *where & 0x00ffffff;
         if (addend & 0x00800000)
             addend |= 0xff000000;

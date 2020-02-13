@@ -241,7 +241,7 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
     for (index = 0; index < elf_module->e_shnum; index ++)
     {
         /* text */
-        if (IS_PROG(shdr[index]) && IS_AX(shdr[index]))
+        if (IS_PROG(shdr[index]) && IS_AX(shdr[index]))//shdr begin + section header table offset
         {
             module_size += shdr[index].sh_size;
             module_addr = shdr[index].sh_addr;
@@ -278,18 +278,18 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
     module->mem_size = module_size;
 
     /* zero all space */
-    ptr = module->mem_space;
+    ptr = module->mem_space;//起始地址空间?
     rt_memset(ptr, 0, module_size);
 
     /* load text and data section */
     for (index = 0; index < elf_module->e_shnum; index ++)
     {
-        /* load text section */
+        /* load text section *///程序代码段
         if (IS_PROG(shdr[index]) && IS_AX(shdr[index]))
         {
             rt_memcpy(ptr,
                       (rt_uint8_t *)elf_module + shdr[index].sh_offset,
-                      shdr[index].sh_size);
+                      shdr[index].sh_size);//从原始地址拷贝到申请的地址中..
             LOG_D("load text 0x%x, size %d", ptr, shdr[index].sh_size);
             ptr += shdr[index].sh_size;
         }
@@ -321,14 +321,14 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
         /* load bss section */
         if (IS_NOPROG(shdr[index]) && IS_AW(shdr[index]))
         {
-            rt_memset(ptr, 0, shdr[index].sh_size);
+            rt_memset(ptr, 0, shdr[index].sh_size);//直接赋0作为bss段
             bss_addr = (rt_uint32_t)ptr;
             LOG_D("load bss 0x%x, size %d", ptr, shdr[index].sh_size);
         }
     }
 
     /* set module entry */
-    module->entry_addr = (rt_dlmodule_entry_func_t)((rt_uint8_t *)module->mem_space + elf_module->e_entry - module_addr);
+    module->entry_addr = (rt_dlmodule_entry_func_t)((rt_uint8_t *)module->mem_space + elf_module->e_entry - module_addr);//module_addr代码原始段地址//整体的意思是偏移地址
 
     /* handle relocation section */
     for (index = 0; index < elf_module->e_shnum; index ++)
@@ -343,13 +343,13 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
         /* get relocate item */
         rel = (Elf32_Rel *)((rt_uint8_t *)module_ptr + shdr[index].sh_offset);
 
-        /* locate .dynsym and .dynstr */
+        /* locate .dynsym and .dynstr *///.dynstr段：存储.dynsym段符号对应的符号名。//dynsym段：动态符号表，存储与动态链接相关的导入导出符号,不包括模块内部的符号
         symtab   = (Elf32_Sym *)((rt_uint8_t *)module_ptr +
-                                 shdr[shdr[index].sh_link].sh_offset);
+                                 shdr[shdr[index].sh_link].sh_offset);//sh_link section header table index link//确定符号的名称与其值之间的关联，其中名称不是直接以字符串形式出现的，而是表示为某一字符串数组（.strtab）的索引。
         strtab   = (rt_uint8_t *)module_ptr +
-                   shdr[shdr[shdr[index].sh_link].sh_link].sh_offset;
+                   shdr[shdr[shdr[index].sh_link].sh_link].sh_offset;//strtab保存了字符串数组（.shstrtab包含了节名称字符串表）。
         shstrab  = (rt_uint8_t *)module_ptr +
-                   shdr[elf_module->e_shstrndx].sh_offset;
+                   shdr[elf_module->e_shstrndx].sh_offset;//ELF文件中有很多字符串，例如段名、变量名。这些字符串长度不固定，因此统一写在一起使用偏移来引用。这张表就是字符串表。
         nr_reloc = (rt_uint32_t)(shdr[index].sh_size / sizeof(Elf32_Rel));
 
         /* relocate every items */
@@ -367,18 +367,18 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
                     (ELF_ST_TYPE(sym->st_info) == STT_OBJECT))
                 {
                     if (rt_strncmp((const char *)(shstrab +
-                                                  shdr[sym->st_shndx].sh_name), ELF_RODATA, 8) == 0)
+                                                  shdr[sym->st_shndx].sh_name), ELF_RODATA, 8) == 0)// name - index into section header string table section
                     {
                         /* relocate rodata section */
-                        LOG_D("rodata");
-                        addr = (Elf32_Addr)(rodata_addr + sym->st_value);
+                        LOG_D("rodata");//rodata用来存放常量数据
+                        addr = (Elf32_Addr)(rodata_addr + sym->st_value);//rodata_addr rodata段首地址
                     }
                     else if (rt_strncmp((const char *)
                                         (shstrab + shdr[sym->st_shndx].sh_name), ELF_BSS, 5) == 0)
                     {
                         /* relocate bss section */
                         LOG_D("bss");
-                        addr = (Elf32_Addr)bss_addr + sym->st_value;
+                        addr = (Elf32_Addr)bss_addr + sym->st_value;//零偏地址?
                     }
                     else if (rt_strncmp((const char *)(shstrab + shdr[sym->st_shndx].sh_name),
                                         ELF_DATA, 6) == 0)
@@ -388,7 +388,7 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
                         addr = (Elf32_Addr)data_addr + sym->st_value;
                     }
 
-                    if (addr != 0) dlmodule_relocate(module, rel, addr);
+                    if (addr != 0) dlmodule_relocate(module, rel, addr);//module object,relocate item,段首地址
                 }
                 else if (ELF_ST_TYPE(sym->st_info) == STT_FUNC)
                 {
@@ -405,7 +405,7 @@ rt_err_t dlmodule_load_relocated_object(struct rt_dlmodule* module, void *module
                                        (Elf32_Addr)((rt_uint8_t *)
                                                     module->mem_space
                                                     - module_addr
-                                                    + sym->st_value));
+                                                    + sym->st_value));//MEM起始空间 - (代码段原始地址 - ?)
             }
             else
             {

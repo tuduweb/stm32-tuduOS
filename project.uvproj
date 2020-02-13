@@ -359,7 +359,7 @@
               <MiscControls />
               <Define>USE_HAL_DRIVER, RT_USING_ARM_LIBC, STM32F429xx</Define>
               <Undefine />
-              <IncludePath>.;rt-thread\include;applications;.;board;board\CubeMX_Config\Inc;board\ports;libraries\HAL_Drivers;libraries\HAL_Drivers\config;libraries\HAL_Drivers\drv_flash;packages\fal-v0.4.0\inc;rt-thread\libcpu\arm\common;rt-thread\libcpu\arm\cortex-m4;rt-thread\components\dfs\include;rt-thread\components\dfs\filesystems\devfs;rt-thread\components\dfs\filesystems\elmfat;rt-thread\components\dfs\filesystems\ramfs;rt-thread\components\dfs\filesystems\romfs;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\drivers\spi;rt-thread\components\drivers\include;rt-thread\components\drivers\spi\sfud\inc;rt-thread\components\drivers\include;rt-thread\components\finsh;rt-thread\components\libc\compilers\armlibc;rt-thread\components\libc\compilers\common;rt-thread\components\lwp;rt-thread\components\utilities\ymodem;libraries\STM32F4xx_HAL\STM32F4xx_HAL_Driver\Inc;libraries\STM32F4xx_HAL\CMSIS\Device\ST\STM32F4xx\Include;libraries\STM32F4xx_HAL\CMSIS\Include</IncludePath>
+              <IncludePath>.;rt-thread\include;applications;.;board;board\CubeMX_Config\Inc;board\ports;libraries\HAL_Drivers;libraries\HAL_Drivers\config;libraries\HAL_Drivers\drv_flash;packages\fal-v0.4.0\inc;rt-thread\libcpu\arm\common;rt-thread\libcpu\arm\cortex-m4;rt-thread\components\dfs\include;rt-thread\components\dfs\filesystems\devfs;rt-thread\components\dfs\filesystems\elmfat;rt-thread\components\dfs\filesystems\ramfs;rt-thread\components\dfs\filesystems\romfs;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\drivers\spi;rt-thread\components\drivers\include;rt-thread\components\drivers\spi\sfud\inc;rt-thread\components\drivers\include;rt-thread\components\finsh;rt-thread\components\libc\compilers\armlibc;rt-thread\components\libc\compilers\common;rt-thread\components\libc\signal;rt-thread\components\libc\pthreads;rt-thread\components\libc\time;rt-thread\components\lwp;rt-thread\components\utilities\ulog;rt-thread\components\utilities\ymodem;libraries\STM32F4xx_HAL\STM32F4xx_HAL_Driver\Inc;libraries\STM32F4xx_HAL\CMSIS\Device\ST\STM32F4xx\Include;libraries\STM32F4xx_HAL\CMSIS\Include</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -516,6 +516,13 @@
               <FilePath>applications\mnt.c</FilePath>
             </File>
           </Files>
+          <Files>
+            <File>
+              <FileName>comm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\comm.c</FilePath>
+            </File>
+          </Files>
         </Group>
         <Group>
           <GroupName>Drivers</GroupName>
@@ -611,6 +618,13 @@
               <FileName>fal_rtt.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\fal-v0.4.0\src\fal_rtt.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>fal_flash_sfud_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\fal-v0.4.0\samples\porting\fal_flash_sfud_port.c</FilePath>
             </File>
           </Files>
           <GroupOption>
@@ -920,6 +934,13 @@
           </Files>
           <Files>
             <File>
+              <FileName>libc_syms.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\compilers\armlibc\libc_syms.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
               <FileName>mem_std.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\libc\compilers\armlibc\mem_std.c</FilePath>
@@ -944,6 +965,107 @@
               <FileName>time.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\libc\compilers\common\time.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>posix_signal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\signal\posix_signal.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>pthreads</GroupName>
+          <Files>
+            <File>
+              <FileName>mqueue.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\mqueue.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_attr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_attr.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_barrier.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_barrier.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_cond.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_cond.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_mutex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_mutex.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_rwlock.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_rwlock.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_spin.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_spin.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>pthread_tls.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\pthread_tls.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>sched.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\sched.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>semaphore.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\pthreads\semaphore.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>clock_time.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\time\clock_time.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>posix_sleep.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\libc\time\posix_sleep.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -987,6 +1109,20 @@
         </Group>
         <Group>
           <GroupName>Utilities</GroupName>
+          <Files>
+            <File>
+              <FileName>ulog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\utilities\ulog\ulog.c</FilePath>
+            </File>
+          </Files>
+          <Files>
+            <File>
+              <FileName>console_be.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\utilities\ulog\backend\console_be.c</FilePath>
+            </File>
+          </Files>
           <Files>
             <File>
               <FileName>ymodem.c</FileName>

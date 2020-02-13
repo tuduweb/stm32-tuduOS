@@ -289,6 +289,7 @@ struct exception_info
 /*
  * fault exception handler
  */
+//todo:改造成适应mpu
 void rt_hw_hard_fault_exception(struct exception_info * exception_info)
 {
     extern long list_thread(void);

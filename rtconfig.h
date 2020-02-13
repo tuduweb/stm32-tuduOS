@@ -139,6 +139,19 @@
 /* Utilities */
 
 #define RT_USING_RYM
+#define RT_USING_ULOG
+#define ULOG_OUTPUT_LVL_D
+#define ULOG_OUTPUT_LVL 7
+#define ULOG_ASSERT_ENABLE
+#define ULOG_LINE_BUF_SIZE 128
+
+/* log format */
+
+#define ULOG_USING_COLOR
+#define ULOG_OUTPUT_TIME
+#define ULOG_OUTPUT_LEVEL
+#define ULOG_OUTPUT_TAG
+#define ULOG_BACKEND_USING_CONSOLE
 #define RT_USING_LWP
 
 /* RT-Thread online packages */
@@ -179,6 +192,9 @@
 #define FAL_USING_NOR_FLASH_DEV_NAME "W25Q128"
 #define PKG_USING_FAL_V00400
 #define PKG_FAL_VER_NUM 0x00400
+#define PKG_USING_CMSIS
+#define PKG_USING_CMSIS_LATEST_VERSION
+#define PKG_CMSIS_CORE
 
 /* peripheral libraries and drivers */
 

@@ -183,7 +183,7 @@ struct rt_dlmodule *dlmodule_create(void)
         module->priority = RT_THREAD_PRIORITY_MAX - 1;
         module->stack_size = 2048;
 
-        rt_list_init(&(module->object_list));
+        rt_list_init(&(module->object_list));//object_list 对象链表 rt_list_init 双向链表初始化
     }
 
     return module;
@@ -427,7 +427,7 @@ struct rt_dlmodule* dlmodule_load(const char* filename)
     fd = open(filename, O_RDONLY, 0);
     if (fd >= 0)
     {
-        length = lseek(fd, 0, SEEK_END);
+        length = lseek(fd, 0, SEEK_END);//lseek是一个用于改变读写一个文件时读写指针位置的一个系统调用。指针位置可以是绝对的或者相对的。
         lseek(fd, 0, SEEK_SET);
 
         if (length == 0) goto __exit;
@@ -462,7 +462,7 @@ struct rt_dlmodule* dlmodule_load(const char* filename)
         goto __exit;
     }
 
-    module = dlmodule_create();
+    module = dlmodule_create();//创建module对象(数据结构)
     if (!module) goto __exit;
 
     /* set the name of module */
@@ -488,7 +488,7 @@ struct rt_dlmodule* dlmodule_load(const char* filename)
     if (ret != RT_EOK) goto __exit;
 
     /* release module data */
-    rt_free(module_ptr);
+    rt_free(module_ptr);//释放 指向读出的文件数据指针 将指针所指的内存空间交还给系统 数据仍然可以读 只是没指向（没意义）
 
     /* increase module reference count */
     module->nref ++;
@@ -500,7 +500,7 @@ struct rt_dlmodule* dlmodule_load(const char* filename)
 #endif
 
     /* set module initialization and cleanup function */
-    module->init_func = dlsym(module, "module_init");
+    module->init_func = dlsym(module, "module_init");// 获取共享对象或可执行文件中符号的地址
     module->cleanup_func = dlsym(module, "module_cleanup");
     module->stat = RT_DLMODULE_STAT_INIT;
     /* do module initialization */
@@ -531,7 +531,7 @@ struct rt_dlmodule* dlmodule_exec(const char* pgname, const char* cmd, int cmd_s
             /* exec this module */
             rt_thread_t tid;
 
-            module->cmd_line = rt_strdup(cmd);
+            module->cmd_line = rt_strdup(cmd);//申请内存拷贝
 
             /* check stack size and priority */
             if (module->priority > RT_THREAD_PRIORITY_MAX) module->priority = RT_THREAD_PRIORITY_MAX - 1;
@@ -541,7 +541,7 @@ struct rt_dlmodule* dlmodule_exec(const char* pgname, const char* cmd, int cmd_s
                 module->stack_size, module->priority, 10);
             if (tid)
             {
-                tid->module_id = module;
+                tid->module_id = module;//id -> addr 确保唯一性
                 module->main_thread = tid;
 
                 rt_thread_startup(tid);
