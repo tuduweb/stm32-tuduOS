@@ -1,23 +1,47 @@
 #include <rtthread.h>
 #include <mpu.h>
 #include <rthw.h>
-
 #include <lwp.h>
+//---->以下为日志单元的配置项
 #define LOG_TAG     "mpu"     // 该模块对应的标签。不定义时，默认：NO_TAG
 //#define LOG_LVL     LOG_LVL_DBG   // 该模块对应的日志输出级别。不定义时，默认：调试级别
 #include <ulog.h>                 // 必须在 LOG_TAG 与 LOG_LVL 下面
+//日志单元配置项结束<----
 
+/**
+ * MPU保护单元 需要有MPU单元才能实现如下代码
+ * 使用 CM4内核的 STM32F429验证
+ * 具体用法是，在线程模式下保护内核数据不被访问?特别是App模式下，堆栈、堆等都有严格的限制，禁止越界，来实现App的隔离化
+ * 
+ * 当出现硬件错误 HardFault 的时候，可以直接停止App的运行，即加载寄存器其他状态，销毁当前进程。
+ * 保护内核代码的正常运行?
+ * @Author      : bin
+ * @CreateTime  : 2020-2-15
+**/
+
+
+
+/**
+ * 在应用态切换到内核态时，需要执行mpu的切换
+ *
+**/
 void bin_lwp_mpu_switch(struct rt_thread *thread)
 {
     //这里是mpu的轮转片
     rt_kprintf("%s",thread->name);
 }
 
+/**
+ * MPU 开启
+**/
 void bin_mpu_enable()
 {
     //
 }
 
+/**
+ * MPU 关闭
+**/
 void bin_mpu_disable()
 {
     //
@@ -72,7 +96,9 @@ rt_err_t exception_handle(struct exception_stack_frame *context)
 
 }
 
-
+/**
+ * MPU 的初始化
+**/
 void bin_mpu_init()
 {
     bin_mpu_disable();

@@ -58,6 +58,12 @@ extern struct fal_flash_dev nor_flash0;
 #ifdef FAL_PART_HAS_TABLE_CFG
 
 /* partition table */
+/**
+ * bootloader分区 默认上电是从inchip的offset 0开始读取 所以这里一定要有启动文件
+ * param分区 存放easyflash的参数
+ * os分区 存放主系统
+ * app分区 放app文件
+**/
 #define FAL_PART_TABLE                                                                                                     \
 {                                                                                                                          \
     {FAL_PART_MAGIC_WROD, "bootloader", "onchip_flash",  0 , FLASH_SIZE_GRANULARITY_16K , 0}, \

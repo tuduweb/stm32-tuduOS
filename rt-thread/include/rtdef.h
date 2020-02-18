@@ -1095,7 +1095,7 @@ struct exception_stack_frame
     rt_uint32_t pc;
     rt_uint32_t psr;
 };
-
+#define USE_FPU   1
 struct stack_frame
 {
 #if USE_FPU
