@@ -26,15 +26,15 @@ struct ef_env_dev{
 typedef struct ef_env_dev *ef_env_dev_t;
 
 
-struct root_direct{
+struct root_dirent{
     struct ef_env_dev env_dev;
     //env_meta_data env;
     uint32_t sec_addr;
 };
 
-struct root_direct* xip_mount_table[2] = {RT_NULL};
+struct root_dirent* xip_mount_table[2] = {RT_NULL};
 
-struct root_direct* get_env_by_dev(rt_device_t dev_id)
+struct root_dirent* get_env_by_dev(rt_device_t dev_id)
 {
     void* deviceType = dev_id->parent.type;//type of kernel object
 
@@ -53,6 +53,7 @@ struct root_direct* get_env_by_dev(rt_device_t dev_id)
  * fs   : path,ops,dev_id
  * data : 文件系统的私有数据 在dfs_mount调用中自行传入
 **/
+int mount_index = 0;
 int dfs_xipfs_mount(struct dfs_filesystem *fs,
                     unsigned long          rwflag,
                     const void            *data)
@@ -67,12 +68,19 @@ int dfs_xipfs_mount(struct dfs_filesystem *fs,
     /* get env by dev_id */
     if( get_env_by_dev(fs->dev_id) )
         return RT_EOK;
+    
+    if(mount_index >= 2u)
+        return -RT_ERROR;
+    mount_index++;
 
     /* 如果没有挂载表 那么在这里新建挂载表 */
     for(int table_id = 0; table_id < 2; ++table_id)
     {
         ef_env_dev_t ef_env_dev = rt_malloc(sizeof(ef_env_dev_t));
+
+        //类型 void *flash;
         ef_env_dev->flash = fs->dev_id->parent.type;//得到flash?
+        //sector_size保存在哪里?在挂载的物理硬件的信息里
         ef_env_dev->sector_size = fs->dev_id;//得到sector_size
 
         //ef_env_init_by_flash(ef_env_dev);
@@ -92,7 +100,7 @@ int dfs_xipfs_mount(struct dfs_filesystem *fs,
 **/
 int dfs_xipfs_unmount(struct dfs_filesystem *fs)
 {
-    struct root_direct* root = get_env_by_dev(fs->dev_id);
+    struct root_dirent* root = get_env_by_dev(fs->dev_id);
     
     if(root)
         rt_free(root);
@@ -102,10 +110,12 @@ int dfs_xipfs_unmount(struct dfs_filesystem *fs)
 
 /**
  * 在某个dev_id上初始化xipfs文件系统
+ * 如果配置表中没有这个devid的信息 那么直接返回
+ * 如果配置表中有这个devid信息 那么把信息配置到ef系统
 **/
 int dfs_xipfs_mkfs(rt_device_t dev_id)
 {
-    struct root_direct* mount_table;
+    struct root_dirent* mount_table;
     mount_table = get_env_by_dev(dev_id);
     
     //以下函数需要改造
@@ -115,12 +125,19 @@ int dfs_xipfs_mkfs(rt_device_t dev_id)
     return RT_EOK;
 }
 
+#include <fal.h>
 /**
  * 获取文件磁盘信息 放在buf中
 **/
 int dfs_xipfs_statfs(struct dfs_filesystem *fs, struct statfs *buf)
 {
-    buf->f_bsize  = 512;
+    size_t block_size, total_size,free_size;
+    struct root_dirent* env_table;
+
+    //参数键入env中的name
+    block_size = fal_flash_device_find("name")->blk_size;
+    total_size = 512;//在env中获取已占用大小
+    buf->f_bsize  = block_size;
     buf->f_blocks = 512;//ramfs->memheap.pool_size / 512;
     buf->f_bfree  = 512;//ramfs->memheap.available_size / 512;
     return RT_EOK;
@@ -157,12 +174,21 @@ int dfs_xipfs_stat(struct dfs_filesystem *fs,
     return RT_EOK;
 }
 
+
+/**
+ * XIPFS 文件系统下 文件的操作 打开
+**/
+int dfs_xipfs_open(struct dfs_fd *file)
+{
+    return RT_EOK;
+}
+
 /**
  * XIP下 文件操作方法
 **/
 static const struct dfs_file_ops _dfs_xip_fops =
 {
-    RT_NULL,//dfs_elm_open,
+    dfs_xipfs_open,
     RT_NULL,//dfs_elm_close,
     RT_NULL,//dfs_elm_ioctl,
     RT_NULL,//dfs_elm_read,
@@ -179,9 +205,9 @@ static const struct dfs_filesystem_ops _dfs_xipfs =
     DFS_FS_FLAG_DEFAULT,
     &_dfs_xip_fops,
 
-    dfs_xipfs_mount,
+    dfs_xipfs_mount,// 挂载操作, 实际上是把带有文件系统(已mkfs)的设备device附加到dir上, 然后我们就可以通过访问dir来访问这个设备.
     dfs_xipfs_unmount,
-    dfs_xipfs_mkfs,
+    dfs_xipfs_mkfs,//用于全片擦除后创建文件系统,只是存储器介质上有这个文件系统? 其参数为 dev_id 是存储器的id
     dfs_xipfs_statfs,
 
     dfs_xipfs_unlink,

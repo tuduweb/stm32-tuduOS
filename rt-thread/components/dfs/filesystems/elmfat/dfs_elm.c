@@ -288,7 +288,7 @@ int dfs_elm_mkfs(rt_device_t dev_id)
 
     return RT_EOK;
 }
-
+//statfs获得硬盘使用情况
 int dfs_elm_statfs(struct dfs_filesystem *fs, struct statfs *buf)
 {
     FATFS *f;
