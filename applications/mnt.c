@@ -84,7 +84,7 @@ int flash_init()
         LOG_D("Create a block device on the %s partition of flash successful.", FS_PARTITION_NAME);
     }
 
-    /* 挂载 spi flash 中名为 "filesystem" 的分区上的文件系统 */
+    /* 挂载 spi flash 中名为 "dev0" 的分区上的文件系统 */
     if (dfs_mount(flash_dev->parent.name, "/dev0", "elm", 0, 0) == 0)
     {
         LOG_I("Filesystem initialized!");

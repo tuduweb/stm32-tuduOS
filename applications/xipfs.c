@@ -13,7 +13,7 @@
 
 struct ef_env_dev{
     uint32_t env_start_addr;
-    const ef_env *default_env_set;//key->value
+    const ef_env *default_env_set;//key->value关系变量
     size_t default_env_set_size;
     _Bool init_ok;
     _Bool gc_request;
@@ -135,6 +135,9 @@ int dfs_xipfs_statfs(struct dfs_filesystem *fs, struct statfs *buf)
     struct root_dirent* env_table;
 
     //参数键入env中的name
+
+    env_table = get_env_by_dev(fs->dev_id);
+    //env_table->env_dev.flash从这里面搞出分区名字
     block_size = fal_flash_device_find("name")->blk_size;
     total_size = 512;//在env中获取已占用大小
     buf->f_bsize  = block_size;
@@ -163,6 +166,7 @@ int dfs_xipfs_unlink(struct dfs_filesystem *fs, const char *path)
     return -RT_ERROR;
 }
 
+#include <easyflash.h>
 /**
  * XIP文件系统 获得文件状态
 **/
@@ -170,8 +174,33 @@ int dfs_xipfs_stat(struct dfs_filesystem *fs,
                    const char            *path,
                    struct stat           *st)
 {
-    //
-    return RT_EOK;
+    //需要判断path是目录,还是文件:目录和文件返回的数据是不一样的
+    //返回的数据是在st这个实参中的
+
+    struct root_dirent* root_dirent = get_env_by_dev(fs->dev_id);
+    //envmetadata
+
+    //如果这个device_id下有配置的xip环境 也就是 是xip环境
+    if(root_dirent)
+    {
+        st->st_dev = 0;
+        st->st_size = 0;
+        st->st_mtime = 0;
+        if(*path == '/' && !*(path+1))
+        {
+            //文件夹
+            st->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH |
+                        S_IWUSR | S_IWGRP | S_IWOTH;
+            st->st_mode &= ~S_IFREG;
+            st->st_mode |= S_IFDIR | S_IXUSR | S_IXGRP | S_IXOTH;
+            return RT_EOK;
+        }
+
+        //如果在env中找到了这个"path"也就是文件,那么返回文件. 如果没找到 那么返回错误"文件不存在"
+        //if( find_env( &root_dirent->env_dev, path+1, &env))
+    }
+
+    return -RT_ERROR;
 }
 
 
@@ -183,6 +212,22 @@ int dfs_xipfs_open(struct dfs_fd *file)
     return RT_EOK;
 }
 
+
+int dfs_xipfs_read(struct dfs_fd *file, void *buf, size_t len)
+{
+    size_t save_size;
+    rt_size_t length;
+    int result;
+    //result = ef_get_env_blob()
+
+    //从file->pos开始读 len位,如果len超过文件size,那么需要处理
+
+    //pos指针移动length长度
+    file->pos += length;
+
+    return length;
+}
+
 /**
  * XIP下 文件操作方法
 **/
@@ -191,7 +236,7 @@ static const struct dfs_file_ops _dfs_xip_fops =
     dfs_xipfs_open,
     RT_NULL,//dfs_elm_close,
     RT_NULL,//dfs_elm_ioctl,
-    RT_NULL,//dfs_elm_read,
+    dfs_xipfs_read,
     RT_NULL,//dfs_elm_write,
     RT_NULL,//dfs_elm_flush,
     RT_NULL,//dfs_elm_lseek,
