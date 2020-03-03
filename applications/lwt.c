@@ -7,7 +7,7 @@
 
 #include <lwt.h>
 #include <rtthread.h>
-
+#include <rthw.h>
 
 #define DBG_TAG    "LWP"
 #define DBG_LVL    DBG_WARNING
@@ -96,7 +96,7 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
     else
         itemname++;//去除掉'/'只要后面的 比如 bin/app.bin -> app.bin
     //这个参数干嘛用的呢..
-    rt_strncpy(lwt->cmd,itemname,8);
+    rt_strncpy(lwt->cmd,itemname, 8);
     
     /* 这里需要更换成xipfs 现在暂时是fatfs */
     fd = open(filename, 0, O_RDONLY);
@@ -135,9 +135,105 @@ _exit:
 
 struct rt_lwt *rt_lwt_self(void)
 {
-    return (struct rt_lwt *)rt_thread_self()->lwp;
+    rt_thread_t tid = rt_thread_self();
+    if(tid == RT_NULL)
+        return RT_NULL;
+    return tid->lwp;
 }
 
+struct rt_lwp *rt_lwp_new(void)
+{
+    struct rt_lwt *lwt = RT_NULL;
+    //关闭中断 主要是MPU保护这一块
+    rt_uint32_t level = rt_hw_interrupt_disable();
+
+    //在pidmap中找一个空闲的位置,如果不存在空闲位置,则满
+
+    
+    //如果能找到位置 那么申请变量,初始化参量
+    lwt = (struct rt_lwt *)rt_malloc(sizeof(struct rt_lwt));
+
+    if(lwt == RT_NULL)
+    {
+        LOG_E("no memory for lwp struct!");
+
+    }else{
+
+        //置位,赋0
+        rt_memset(lwt, 0, sizeof(*lwt));
+
+        //重置双向链表
+        lwt->wait_list.prev = &lwt->wait_list;
+        lwt->wait_list.next = &lwt->wait_list;
+        lwt->object_list.prev = &lwt->object_list;
+        lwt->object_list.next = &lwt->object_list;
+        lwt->t_grp.prev = &lwt->t_grp;
+        lwt->t_grp.next = &lwt->t_grp;
+        lwt->ref = 1;//引用次数
+
+        //lwt->pid = //申请到的pid map中的位置(下标)
+        
+
+        //把这个lwt结构体放入 pid_map相应下标形成映射关系
+    }
+
+
+
+    //重新开启保护
+    rt_hw_interrupt_enable(level);
+
+    return lwt;
+}
+
+void lwt_ref_inc(struct rt_lwt *lwt)
+{
+    rt_uint32_t level = rt_hw_interrupt_disable();
+    
+    lwt->ref++;
+
+    rt_hw_interrupt_enable(level);
+}
+
+void lwt_ref_dec(struct rt_lwt *lwt)
+{
+    rt_uint32_t level = rt_hw_interrupt_disable();
+    
+    if(lwt->ref > 0)
+    {
+        lwt->ref--;
+        if(lwt->ref == 0)
+        {
+            //无任何地方引用,执行删除操作
+
+            //共享内存
+            //引用对象
+            //数据删除
+
+            //以上操作需要防止内存溢出
+        }
+    }
+
+    rt_hw_interrupt_enable(level);
+}
+
+char* lwt_pid2name(pid_t pid)
+{
+    //
+}
+
+pid_t lwt_name2pid(char *name)
+{
+    //在pid_map中进行查找操作..
+    return -RT_ERROR;
+}
+
+
+
+
+/**
+ * 执行操作
+ * envp里存放的是系统的环境变量
+**/
 void lwt_execve(char *filename, int argc, char **argv, char **envp)
 {
     struct rt_lwt *lwt;
@@ -146,6 +242,7 @@ void lwt_execve(char *filename, int argc, char **argv, char **envp)
     if (filename == RT_NULL)
         return -RT_ERROR;
 
+    //把这里换成新建的函数体 类似于c++中的新建一个实例
     lwt = (struct rt_lwt *)rt_malloc(sizeof(struct rt_lwt));
     if (lwt == RT_NULL)
     {

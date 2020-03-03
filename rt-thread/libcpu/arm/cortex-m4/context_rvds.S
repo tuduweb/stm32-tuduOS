@@ -43,7 +43,7 @@ rt_hw_interrupt_disable    PROC
     ENDP
 
 ;/*
-; * void rt_hw_interrupt_enable(rt_base_t level);
+; * void rt_hw_interrupt_enable(rt_base_t level);//将变量 level 作为需要恢复的状态，覆盖芯片的全局中断状态。
 ; */
 rt_hw_interrupt_enable    PROC
     EXPORT  rt_hw_interrupt_enable
