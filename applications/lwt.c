@@ -20,6 +20,9 @@
 //日志单元配置项结束<----
 
 
+struct lwt_pidmap lwt_pid;
+
+
 
 /**
  * 参数复制 把参数拷贝到lwt的结构体中
@@ -216,17 +219,41 @@ void lwt_ref_dec(struct rt_lwt *lwt)
     rt_hw_interrupt_enable(level);
 }
 
-char* lwt_pid2name(pid_t pid)
+char* lwt_get_name_from_pid(pid_t pid)
 {
-    //
+    struct rt_lwt *lwt;
+    char *name;
+    if( lwt = lwt_pid.pidmap[pid] )
+    {
+        //返回字符最后一次出现的指针
+        if(name = strrchr(lwt->cmd, '/'))
+        {
+            return name + 1;
+        }
+    }
+
+    return RT_NULL;
 }
 
-pid_t lwt_name2pid(char *name)
+pid_t lwt_get_pid_from_name(char *name)
 {
     //在pid_map中进行查找操作..
+    for(int i = 0; i < LWP_PIDMAP_SIZE; ++i)
+    {
+        //
+    }
     return -RT_ERROR;
 }
 
+pid_t lwt_get_pid(void)
+{
+    struct rt_lwt *lwt;
+    if(lwt)
+    {
+        return 1;//rt_thread_self()->lwp->pid;
+    }
+    return 0;
+}
 
 
 

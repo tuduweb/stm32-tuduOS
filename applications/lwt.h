@@ -73,6 +73,12 @@ struct lwt_chunk
     uint32_t data_len_space;
 };
 
+#define LWP_PIDMAP_SIZE 30
+struct lwt_pidmap
+{
+    struct rt_lwt *pidmap[LWP_PIDMAP_SIZE];
+    pid_t lastpid;
+};
 
 /**
  * 轻量级进程 执行文件
