@@ -149,3 +149,140 @@ struct env_node_obj {
 };
 typedef struct env_node_obj *env_node_obj_t;
 ```
+##### 读取 Sector meta 扇区信息
+`static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector, bool traversal)`
+
+读取扇区下的信息，如 remain(size),empty_env(size) len
+
+##### 得到下一个扇区的地址
+`static uint32_t get_next_sector_addr(sector_meta_data_t pre_sec)`
+
+会判断是否连续，用 pre_sec->combined 判断。
+
+##### 迭代操作
+`static void env_iterator(env_node_obj_t env, void *arg1, void *arg2, bool (*callback)(env_node_obj_t env, void *arg1, void *arg2))`
+
+对所有扇区进行迭代操作，操作函数为callback，参量为arg1，arg2
+
+##### 在分区中查找变量
+`static bool find_env_cb(env_node_obj_t env, void *arg1, void *arg2)`
+
+`static bool find_env_no_cache(const char *key, env_node_obj_t env)`
+
+作为 env_interator 的 callback 迭代函数，作用是
+
+##### 查找环境（变量）[优先从缓存中查找]
+`static bool find_env(const char *key, env_node_obj_t env)`
+
+优先从缓存中查找，如果没有找到缓存，再全扇区搜索，然后再更新缓存
+
+##### 判断是否为STRING内容
+`static bool ef_is_str(uint8_t *value, size_t len)`
+
+##### 取得环境变量（值）
+`static size_t get_env(const char *key, void *value_buf, size_t buf_len, size_t *value_len)`
+
+相比于 find_env ，多出了从 env.addr.value 查找出真正的 value 这一过程。
+
+##### 根据 KEY 查找 ENV 对象,无值
+`bool ef_get_env_obj(const char *key, env_node_obj_t env)`
+
+##### 根据 KEY 查找 BLOB BUFFER
+`size_t ef_get_env_blob(const char *key, void *value_buf, size_t buf_len, size_t *saved_value_len)`
+
+##### 根据 KEY 查找 STRING *
+`char *ef_get_env(const char *key)`
+
+##### 根据 ENV object 查找 value
+`size_t ef_read_env_value(env_node_obj_t env, uint8_t *value_buf, size_t buf_len)`
+
+##### 向指定地址中 写入 ENV Header
+`static EfErrCode write_env_hdr(uint32_t addr, env_hdr_data_t env_hdr)`
+
+##### 指定 addr 地址擦除，并写入 combined_value
+`static EfErrCode format_sector(uint32_t addr, uint32_t combined_value)`
+
+##### 更新扇区状态
+`static EfErrCode update_sec_status(sector_meta_data_t sector, size_t new_env_len, bool *is_full)`
+
+如果 is_full 非空，会被赋值 true/false
+
+##### 扇区迭代操作
+`static void sector_iterator(sector_meta_data_t sector, sector_store_status_t status, void *arg1, void *arg2, bool (*callback)(sector_meta_data_t sector, void *arg1, void *arg2), bool traversal_env)`
+
+param travelsal_env 是否要对逐个env进行操作（获得 remain(size) 等）
+对所有ENV扇区进行迭代操作
+
+##### 统计扇区信息 empty/using sector 用于 gabage clean
+`static bool sector_statistics_cb(sector_meta_data_t sector, void *arg1, void *arg2)`
+
+`static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)`
+
+##### 申请 ENV 空间
+`static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)`
+
+##### 删除环境变量
+`static EfErrCode del_env(const char *key, env_node_obj_t old_env, bool complete_del)`
+
+key , old_env 优先执行对 key 的删除
+
+##### 移动 ENV
+`static EfErrCode move_env(env_node_obj_t env)`
+
+##### 在 sector 中申请新的ENV
+`static uint32_t new_env(sector_meta_data_t sector, size_t env_size)`
+
+##### 在 sector 中申请新的K->V型ENV
+`static uint32_t new_env_by_kv(sector_meta_data_t sector, size_t key_len, size_t buf_len)`
+
+##### 扇区垃圾清理
+`static bool gc_check_cb(sector_meta_data_t sector, void *arg1, void *arg2)`
+
+`static bool do_gc(sector_meta_data_t sector, void *arg1, void *arg2)`
+
+`static void gc_collect(void)`
+
+1. 扇区垃圾清理，把碎片化的ENV搬到新的分区中，执行完毕后执行初始化操作 format_sector
+2. 清理扇区操作有阈值，需要空闲扇区小于阈值才会允许执行。
+
+
+##### 对齐写入
+`static EfErrCode align_write(uint32_t addr, const uint32_t *buf, size_t size)`
+
+`static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, const void *value, size_t len)`
+
+##### 删除操作
+`EfErrCode ef_del_env(const char *key)`
+
+##### 给 key 设置值
+`static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)`
+
+##### 接口类 创建/删除/更改 ENV
+`EfErrCode ef_set_env_blob(const char *key, const void *value_buf, size_t buf_len)`
+
+##### 全部初始化，擦除所有扇区
+`EfErrCode ef_env_set_default(void)`
+
+##### 打印全部变量
+`static bool print_env_cb(env_node_obj_t env, void *arg1, void *arg2)`
+
+`void ef_print_env(void)`
+
+##### 检查扇区HEADER
+`static bool check_sec_hdr_cb(sector_meta_data_t sector, void *arg1, void *arg2)`
+
+检查扇区HEADER check_ok，并初始化，统计 failed_count
+
+##### 检查扇区状态status.dirty == SECTOR_DIRTY_GC
+`static bool check_and_recovery_gc_cb(sector_meta_data_t sector, void *arg1, void *arg2)`
+
+##### 检查ENV状态
+`static bool check_and_recovery_env_cb(env_node_obj_t env, void *arg1, void *arg2)`
+
+##### EF_LOAD_ENV
+`EfErrCode ef_load_env(void)`
+
+##### 初始化
+`EfErrCode ef_env_init(ef_env const *default_env, size_t default_env_size)`
+
+什么时候执行初始化操作呢!?
