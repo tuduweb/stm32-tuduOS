@@ -94,6 +94,8 @@ int flash_init()
         LOG_E("Failed to initialize filesystem!");
         LOG_D("You should create a filesystem on the block device first!");
     }
+    extern void easyflash_init();
+    easyflash_init();
 
     return 0;
 }

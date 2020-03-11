@@ -17,6 +17,8 @@
 #include <ulog.h>                 // 必须在 LOG_TAG 与 LOG_LVL 下面
 //日志单元配置项结束<----
 
+
+//跟easyflash原始文件的区别是，把一些全局变量封装到了这个结构体中
 struct ef_env_dev{
     uint32_t env_start_addr;
     const ef_env *default_env_set;//key->value关系变量
@@ -24,7 +26,7 @@ struct ef_env_dev{
     _Bool init_ok;
     _Bool gc_request;
     _Bool in_recovery_check;
-    void *flash;
+    void *flash;    //此结构体等同于初始化时候的addr，用于ef_port的首地址
     size_t sector_size;
     struct env_cache_node env_cache_table[16];
     struct sector_cache_node sector_cache_table[4];

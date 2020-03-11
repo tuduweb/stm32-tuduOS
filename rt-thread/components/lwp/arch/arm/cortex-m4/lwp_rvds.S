@@ -29,7 +29,7 @@ lwp_user_entry    PROC
     PUSH    {R0-R3}             ; push text&data addr.
 
     MOV     R0, SP              ; v1 = SP
-    BL      lwp_set_kernel_sp   ; lwp_set_kernel_sp(v1)
+    BL      lwp_set_kernel_sp   ; lwp_set_kernel_sp(v1) ;sp寄存器指向stack,保存当前(kernel)SP的值
 
     ; set CPU to user-thread mode.
     MRS     R2, CONTROL
@@ -41,8 +41,8 @@ lwp_user_entry    PROC
     MOV     R9, R2
 
     ; run app, only Thumb-mode.
-    ORR     R1, R1, #0x01
-    BX      R1
+    ORR     R1, R1, #0x01       ;指令模式的最后一位需要处理一下(32位指令集)
+    BX      R1                  ;执行程序
 
     ; never reach here!
     ENDP

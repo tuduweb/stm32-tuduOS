@@ -35,7 +35,7 @@
 #include <fal.h>
 
 /* EasyFlash partition name on FAL partition table */
-#define FAL_EF_PART_NAME               "param"
+#define FAL_EF_PART_NAME               "exchip1"
 
 /* default ENV set for user */
 static const ef_env default_env_set[] = {

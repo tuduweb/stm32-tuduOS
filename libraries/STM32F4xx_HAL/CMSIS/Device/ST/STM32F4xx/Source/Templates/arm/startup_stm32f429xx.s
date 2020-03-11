@@ -71,6 +71,13 @@ __heap_limit
                 EXPORT  __Vectors_End
                 EXPORT  __Vectors_Size
 
+				;DCD		12340001
+				;IMPORT |Image$$ER_IROM1$$RO$$Length|
+				;DCD		|Image$$ER_IROM1$$RO$$Length|;RO Length
+				;DCD		12340002
+				;DCB		TESTVAL;the input edit value "app"(or other value)
+									;by coding some KEIL symbol or KEIL built-in grammar
+				
 __Vectors       DCD     __initial_sp               ; Top of Stack
                 DCD     Reset_Handler              ; Reset Handler
                 DCD     NMI_Handler                ; NMI Handler
@@ -180,7 +187,8 @@ __Vectors       DCD     __initial_sp               ; Top of Stack
                 DCD     LTDC_IRQHandler                   ; LTDC
                 DCD     LTDC_ER_IRQHandler                ; LTDC error
                 DCD     DMA2D_IRQHandler                  ; DMA2D
-                                         
+
+
 __Vectors_End
 
 __Vectors_Size  EQU  __Vectors_End - __Vectors

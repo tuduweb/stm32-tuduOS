@@ -105,7 +105,7 @@ PendSV_Handler   PROC
     LDR     r1, [r0]
     CBZ     r1, switch_to_thread    ; skip register save at the first time
 
-    MRS     r1, psp                 ; get from thread stack pointer
+    MRS     r1, psp                 ; get from thread stack pointer;psp->r1
 
     IF      {FPU} != "SoftVFP"
     TST     lr, #0x10               ; if(!EXC_RETURN[4])

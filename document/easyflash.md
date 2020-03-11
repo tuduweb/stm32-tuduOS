@@ -286,3 +286,7 @@ key , old_env 优先执行对 key 的删除
 `EfErrCode ef_env_init(ef_env const *default_env, size_t default_env_size)`
 
 什么时候执行初始化操作呢!?
+
+
+## 特性
+FLASH存储器的特性，只能由1写0，并且写入的时候会判断当前写入位置是否为0XFF，所以可以以0XFF为一个状态单位，这也是函数中set_status的核心思想。
