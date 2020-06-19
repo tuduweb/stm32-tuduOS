@@ -66,6 +66,7 @@ EfErrCode ef_port_init(ef_env const **default_env, size_t *default_env_size) {
     rt_sem_init(&env_cache_lock, "env lock", 1, RT_IPC_FLAG_PRIO);
 
     part = fal_partition_find(FAL_EF_PART_NAME);
+    ef_print("[ef part]0x%8x %s\n", part->offset, part->name);
     EF_ASSERT(part);
 
     return result;
