@@ -494,12 +494,12 @@ static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre
             }
             /* check and find next ENV address */
             addr = find_next_env_addr(addr, sector->addr + SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end
-            ef_print("find_next_env_addr 0x%x , 0x%x\n", addr, sector->addr);
+            ////ef_print("find_next_env_addr 0x%x , 0x%x\n", addr, sector->addr);
             if (addr > sector->addr + SECTOR_SIZE || pre_env->len == 0) {
                 //TODO 扇区连续模式
                 //跨扇区 所以需要combine?
                 //先考虑不跨扇区的情况 看看能不能得到头
-                ef_print("TODO:Continuous mode\n");
+                ////ef_print("TODO:Continuous mode\n");
                 
                 return FAILED_ADDR;
             }
@@ -1421,6 +1421,123 @@ EfErrCode ef_set_env_blob(const char *key, const void *value_buf, size_t buf_len
 
     return result;
 }
+
+//新增 
+EfErrCode ef_bin_update_sector_combined()
+{
+    return EF_NO_ERR;
+}
+/**
+static bool print_env_cb(env_meta_data_t env, void *arg1, void *arg2)
+{
+    bool value_is_str = true, print_value = false;
+    size_t *using_size = arg1;
+
+    if (env->crc_is_ok) {
+        *using_size += env->len;
+        if (env->status == ENV_WRITE) {
+            ef_print("[0x%x]%.*s=", env->addr.value, env->name_len, env->name);//edit:添加地址
+
+            if (env->value_len < EF_STR_ENV_VALUE_MAX_SIZE ) {
+                uint8_t buf[32];
+                size_t len, size;
+__reload:
+                for (len = 0, size = 0; len < env->value_len; len += size) {
+                    if (len + sizeof(buf) < env->value_len) {
+                        size = sizeof(buf);
+                    } else {
+                        size = env->value_len - len;
+                    }
+                    ef_port_read(env->addr.value + len, (uint32_t *) buf, EF_WG_ALIGN(size));
+                    if (print_value) {
+                        ef_print("%.*s", size, buf);
+                    } else if (!ef_is_str(buf, size)) {
+                        value_is_str = false;
+                        break;
+                    }
+                }
+                ef_print(" [0x%x]", env->addr.value + len);//edit:新增
+
+            } else {
+                value_is_str = false;
+            }
+            if (value_is_str && !print_value) {
+                print_value = true;
+                goto __reload;
+            } else if (!value_is_str) {
+                ef_print("blob @0x%08X %dbytes", env->addr.value, env->value_len);
+            }
+            ef_print("\n");
+        }
+    }
+
+    return false;
+}**/
+
+static bool print_sector_cb(sector_meta_data_t sector, void *arg1, void *arg2)
+{
+    //if()
+    return false;
+}
+
+
+//新增 打印sector
+void ef_bin_print_sector(void)
+{
+    struct sector_meta_data sector;
+    size_t empty_sector = 0, using_sector = 0;
+    size_t empty_size = 0,using_size = 0;
+    uint32_t sec_addr;
+    size_t i = 0;
+    sector.addr = FAILED_ADDR;
+    ef_port_env_lock();
+
+    while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+        read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
+        ef_print("\n========================================\n");
+        ef_print("sector%d %d\n",i++, sector.remain);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        //遍历sector里面的env
+        
+        struct env_meta_data env;
+
+        env.addr.start = FAILED_ADDR;
+        /* search all ENV */
+        while ((env.addr.start = get_next_env_addr(&sector, &env)) != FAILED_ADDR) {
+            read_env(&env);
+            ef_print("[%.*s] -> %d\n", env.name_len, env.name, env.value_len);
+        }
+
+    }
+    ef_print("========================================\n");
+    ef_print("empty env size:%d\n",sector.empty_env);
+    ef_print("========================================\n");
+
+
+    ef_port_env_unlock();
+/**    return;
+    sector_iterator(&sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
+
+    return;
+
+    struct env_meta_data env;
+    size_t using_size = 0;
+
+    if (!init_ok) {
+        EF_INFO("ENV isn't initialize OK.\n");
+        return;
+    }
+
+    ef_port_env_lock();
+
+    env_iterator(&env, &using_size, NULL, print_env_cb);
+
+    ef_print("\nmode: next generation\n");
+    ef_print("size: %lu/%lu bytes.\n", using_size + (SECTOR_NUM - EF_GC_EMPTY_SEC_THRESHOLD) * SECTOR_HDR_DATA_SIZE,
+            ENV_AREA_SIZE - SECTOR_SIZE * EF_GC_EMPTY_SEC_THRESHOLD);
+
+    ef_port_env_unlock();**/
+}
+
 
 /**
  * Set a string ENV. If it value is NULL, delete it.

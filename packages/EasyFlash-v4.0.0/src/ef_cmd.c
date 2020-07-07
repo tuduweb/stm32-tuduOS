@@ -110,6 +110,14 @@ static void initstring(uint8_t argc, char **argv)
 }
 MSH_CMD_EXPORT(initstring, Init String.);
 
+extern void ef_bin_print_sector(void);
+static void printsector(uint8_t argc, char **argv)
+{
+    ef_bin_print_sector();
+}
+MSH_CMD_EXPORT(printsector, Print Sector Informations.);
+
+
 #endif
 
 
