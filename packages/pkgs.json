@@ -1,0 +1,17 @@
+[
+ {
+  "path": "/packages/tools/EasyFlash", 
+  "ver": "v4.0.0", 
+  "name": "EASYFLASH"
+ }, 
+ {
+  "path": "/packages/system/fal", 
+  "ver": "v0.4.0", 
+  "name": "FAL"
+ }, 
+ {
+  "path": "/packages/system/CMSIS", 
+  "ver": "latest", 
+  "name": "CMSIS"
+ }
+]
