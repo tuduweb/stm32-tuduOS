@@ -587,7 +587,9 @@ static EfErrCode read_env(env_meta_data_t env)
 }
 
 /**
- * @param traversal 是否遍历内部ENV情况,统计信息
+ * 读取扇区meta信息
+ * @param traversal 是否遍历内部ENV情况,统计信息.
+ * @param traversal<false> 只有addr,magic,check_ok,combined,status
  */
 static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector, bool traversal)
 {//把信息读到sector指针实体中
@@ -1039,6 +1041,32 @@ static bool alloc_cont_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
 
     return false;
 }
+/**
+ * 新增 连续扇区测试程序
+ * @name 连续扇区测试
+ */
+static void sector_wander()
+{
+    struct sector_meta_data sector;
+    uint32_t sec_addr;
+    size_t i = 0;
+    sector.addr = FAILED_ADDR;
+    //ef_port_env_lock();
+    ef_print("========================================\n");
+
+    while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+        i++;
+        read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
+        ef_print("%d %d \t", sector.remain, sector.status.store);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        //遍历sector里面的env
+        if(i % 3 == 0)
+            ef_print("\n");
+    }
+    ef_print("\n========================================\n");
+    //ef_port_env_unlock();
+}
+
+
 /***
  * @name 给ENV分配内存
  * @param sector 扇区指针
@@ -1077,7 +1105,8 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
 
             //env_size比较大的情况,那么需要跨区!查找连续扇区
             //这个过程应该弄成缓存,在空闲的时候执行
-            EF_INFO("env_size %d Too Big\n", env_size);//edit:add
+            EF_INFO("env_size %d Too Big\nNEED Cont-Sector<%d> to Write\n", env_size, contSectorSize + 1);//edit:add
+            sector_wander();
             return empty_env;
 
         }
