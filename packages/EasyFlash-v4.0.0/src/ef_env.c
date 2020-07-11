@@ -138,18 +138,18 @@
 
 enum sector_store_status {
     SECTOR_STORE_UNUSED,
-    SECTOR_STORE_EMPTY,
-    SECTOR_STORE_USING,
-    SECTOR_STORE_FULL,
+    SECTOR_STORE_EMPTY,//扇区空
+    SECTOR_STORE_USING,//扇区正在使用
+    SECTOR_STORE_FULL,//扇区全满
     SECTOR_STORE_STATUS_NUM,
 };
 typedef enum sector_store_status sector_store_status_t;
 
 enum sector_dirty_status {
     SECTOR_DIRTY_UNUSED,
-    SECTOR_DIRTY_FALSE,
-    SECTOR_DIRTY_TRUE,
-    SECTOR_DIRTY_GC,
+    SECTOR_DIRTY_FALSE,//干净
+    SECTOR_DIRTY_TRUE,//已脏
+    SECTOR_DIRTY_GC,//正在执行辣鸡回收
     SECTOR_DIRTY_STATUS_NUM,
 };
 typedef enum sector_dirty_status sector_dirty_status_t;
@@ -487,7 +487,8 @@ static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre
         /* the first ENV address */
         addr = sector->addr + SECTOR_HDR_DATA_SIZE;
     } else {
-        if (pre_env->addr.start <= sector->addr + SECTOR_SIZE) {//这里的SECTOR_SIZE 都要改成combined的形式
+        if (  (sector->combined == SECTOR_NOT_COMBINED && pre_env->addr.start <= sector->addr + SECTOR_SIZE)
+            || (sector->combined != SECTOR_NOT_COMBINED && pre_env->addr.start <= sector->addr + sector->combined * SECTOR_SIZE) ) {//这里的SECTOR_SIZE 都要改成combined的形式
             if (pre_env->crc_is_ok) {
                 addr = pre_env->addr.start + pre_env->len;
             } else {
@@ -496,16 +497,25 @@ static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre
                 addr = pre_env->addr.start + EF_WG_ALIGN(1);
             }
             /* check and find next ENV address */
-            addr = find_next_env_addr(addr, sector->addr + SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end// end为没有combined的尾
-            ////ef_print("find_next_env_addr 0x%x , 0x%x\n", addr, sector->addr);
-            if (addr > sector->addr + SECTOR_SIZE || pre_env->len == 0) {//next-addr超出了扇区范围
-                //TODO 扇区连续模式
-                //跨扇区 所以需要combine?
-                //先考虑不跨扇区的情况 看看能不能得到头
-                ////ef_print("TODO Continuous mode\n");
-                
-                return FAILED_ADDR;
+            if( sector->combined == SECTOR_NOT_COMBINED)
+            {
+                addr = find_next_env_addr(addr, sector->addr + SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end// end为没有combined的尾
+                ////ef_print("find_next_env_addr 0x%x , 0x%x\n", addr, sector->addr);
+                if (addr > sector->addr + SECTOR_SIZE || pre_env->len == 0) {//next-addr超出了扇区范围
+                    return FAILED_ADDR;
+                }
+            }else{
+                addr = find_next_env_addr(addr, sector->addr + sector->combined * SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end// end为没有combined的尾
+                if (addr > sector->addr + sector->combined * SECTOR_SIZE || pre_env->len == 0) {//next-addr超出了扇区范围
+                    //TODO 扇区连续模式
+                    //跨扇区 所以需要combine?
+                    //先考虑不跨扇区的情况 看看能不能得到头
+                    ////ef_print("TODO Continuous mode\n");
+                    
+                    return FAILED_ADDR;
+                }
             }
+
         } else {//扇区中,没有下一个ENV
             /* no ENV */
             return FAILED_ADDR;
@@ -514,7 +524,10 @@ static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre
 
     return addr;
 }
-
+/**
+ * 从env.addr.start中读取env详细数据
+ * @param env env指针
+ */
 static EfErrCode read_env(env_meta_data_t env)
 {
     struct env_hdr_data env_hdr;
@@ -573,8 +586,8 @@ static EfErrCode read_env(env_meta_data_t env)
     return result;
 }
 
-/***
- * @param traversal 是否遍历内部ENV情况
+/**
+ * @param traversal 是否遍历内部ENV情况,统计信息
  */
 static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector, bool traversal)
 {//把信息读到sector指针实体中
@@ -597,14 +610,20 @@ static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector,
     sector->check_ok = true;
     /* get other sector meta data */
     sector->combined = sec_hdr.combined;
-    sector->status.store = (sector_store_status_t) get_status(sec_hdr.status_table.store, SECTOR_STORE_STATUS_NUM);
-    sector->status.dirty = (sector_dirty_status_t) get_status(sec_hdr.status_table.dirty, SECTOR_DIRTY_STATUS_NUM);
+    sector->status.store = (sector_store_status_t) get_status(sec_hdr.status_table.store, SECTOR_STORE_STATUS_NUM);//取状态
+    sector->status.dirty = (sector_dirty_status_t) get_status(sec_hdr.status_table.dirty, SECTOR_DIRTY_STATUS_NUM);//取状态
     /* traversal all ENV and calculate the remain space size */
     if (traversal) {
         sector->remain = 0;
         sector->empty_env = sector->addr + SECTOR_HDR_DATA_SIZE;//空置的env地址(临时)
         if (sector->status.store == SECTOR_STORE_EMPTY) {
-            sector->remain = SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;//如果状态为空,那么可以直接计算
+            if(sector->combined != SECTOR_NOT_COMBINED)
+            {
+                sector->remain = sector->combined * SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;
+            }else{
+                sector->remain = SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;//如果状态为空,那么可以直接计算
+            }
+
         } else if (sector->status.store == SECTOR_STORE_USING) {
             struct env_meta_data env_meta;
 
@@ -615,7 +634,13 @@ static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector,
             }
 #endif /* EF_ENV_USING_CACHE */
 
-            sector->remain = SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;//判断combined
+            //sector->remain = SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;//判断combined
+            if(sector->combined != SECTOR_NOT_COMBINED)
+            {
+                sector->remain = sector->combined * SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;
+            }else{
+                sector->remain = SECTOR_SIZE - SECTOR_HDR_DATA_SIZE;//如果状态为空,那么可以直接计算
+            }
             env_meta.addr.start = FAILED_ADDR;//上一个地址
             while ((env_meta.addr.start = get_next_env_addr(sector, &env_meta)) != FAILED_ADDR) {
                 read_env(&env_meta);
@@ -633,13 +658,23 @@ static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector,
             /* check the empty ENV address by read continue 0xFF on flash  */
             {
                 uint32_t ff_addr;
-
-                ff_addr = continue_ff_addr(sector->empty_env, sector->addr + SECTOR_SIZE);
+                if(sector->combined != SECTOR_NOT_COMBINED)
+                {
+                    ff_addr = continue_ff_addr(sector->empty_env, sector->addr + sector->combined * SECTOR_SIZE);//终止地址为起始地址+n*sector_size
+                }else{
+                    ff_addr = continue_ff_addr(sector->empty_env, sector->addr + SECTOR_SIZE);
+                }
+                
                 /* check the flash data is clean */
                 if (sector->empty_env != ff_addr) {
                     /* update the sector information */
                     sector->empty_env = ff_addr;//continue 0xFF address
-                    sector->remain = SECTOR_SIZE - (ff_addr - sector->addr);//SECTOR_SIZE -> combined
+                    if(sector->combined != SECTOR_NOT_COMBINED)
+                    {
+                        sector->remain = sector->combined * SECTOR_SIZE - (ff_addr - sector->addr);//SECTOR_SIZE -> combined
+                    }else{
+                        sector->remain = SECTOR_SIZE - (ff_addr - sector->addr);//SECTOR_SIZE -> combined
+                    }
                 }
             }
 
@@ -846,7 +881,10 @@ char *ef_get_env(const char *key)
 
     return NULL;
 }
-
+/***
+ * @param addr 实际写入的地址
+ * @param env_hdr 写入的参数指针
+ */
 static EfErrCode write_env_hdr(uint32_t addr, env_hdr_data_t env_hdr) {
     EfErrCode result = EF_NO_ERR;
     /* write the status will by write granularity */
@@ -887,7 +925,21 @@ static EfErrCode format_sector(uint32_t addr, uint32_t combined_value)
 
     return result;
 }
+//增加的函数
+static EfErrCode erase_sector(uint32_t addr)
+{
+    EfErrCode result = EF_NO_ERR;
+    EF_ASSERT(addr % SECTOR_SIZE == 0);
 
+    result = ef_port_erase( addr, SECTOR_SIZE);
+    return result;
+}
+
+
+/***
+ * @name 更新扇区状态
+ * @param sector 实际更新的扇区
+ */
 static EfErrCode update_sec_status(sector_meta_data_t sector, size_t new_env_len, bool *is_full)
 {
     uint8_t status_table[STORE_STATUS_TABLE_SIZE];
@@ -987,7 +1039,12 @@ static bool alloc_cont_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
 
     return false;
 }
-
+/***
+ * @name 给ENV分配内存
+ * @param sector 扇区指针
+ * @param env_size 分配类型
+ * @return 可以写入的空EMPTY_ENV地址
+ */
 static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
 {
     uint32_t empty_env = FAILED_ADDR;
@@ -997,21 +1054,43 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
     sector_iterator(sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
     if (using_sector > 0) {
         /* alloc the ENV from the using status sector first */
-        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);
+        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//从USING状态的sector中寻找合适大小
     }
-    if (empty_sector > 0 && empty_env == FAILED_ADDR) {
-        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {
-            sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_cont_env_cb, true);//[env_size] is alloced param size
-        } else {
-            /* no space for new ENV now will GC and retry */
-            EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
-            gc_request = true;
+    if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
+        
+        if(env_size <= SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+        {
+            if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
+                sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
+                //如果ENV大于sector_size，需要执行合并操作..
+            } else {
+                //空间不足,所以需要执行gc
+                /* no space for new ENV now will GC and retry */
+                EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
+                gc_request = true;
+            }
+        }else{
+            //需要连续扇区的大小
+            int contSectorSize = (env_size - SECTOR_HDR_DATA_SIZE) / SECTOR_SIZE;
+
+            //查找连续扇区
+
+            //env_size比较大的情况,那么需要跨区!查找连续扇区
+            //这个过程应该弄成缓存,在空闲的时候执行
+            EF_INFO("env_size %d Too Big\n", env_size);//edit:add
+            return empty_env;
+
         }
+        
+
     }
     EF_INFO("empty_env 0x%x\n", empty_env);//edit:add
     return empty_env;
 }
-
+/***
+ * 假删除变量
+ * @param complete_del 是否完全删除(预删除/已删除) 区分不同状态,防止数据丢失
+ */
 static EfErrCode del_env(const char *key, env_meta_data_t old_env, bool complete_del) {
     EfErrCode result = EF_NO_ERR;
     uint32_t dirty_status_addr;
@@ -1051,18 +1130,21 @@ static EfErrCode del_env(const char *key, env_meta_data_t old_env, bool complete
         last_is_complete_del = false;
     }
 
-    dirty_status_addr = EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET;
+    dirty_status_addr = EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET;//计算dirty_status的地址
     /* read and change the sector dirty status */
     if (result == EF_NO_ERR
             && read_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM) == SECTOR_DIRTY_FALSE) {
-        result = write_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM, SECTOR_DIRTY_TRUE);
+        result = write_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM, SECTOR_DIRTY_TRUE);//把扇区状态改成已脏
     }
 
     return result;
 }
 
-/*
+/**
  * move the ENV to new space
+ * 搬运变量,搬哪里呢
+ * 基本都满了才执行clean,那么搬运肯定是往阈值扇区里面搬了,阈值扇区满了那么也应该有空闲了
+ * @param env 需要搬运的变量结构体
  */
 static EfErrCode move_env(env_meta_data_t env)
 {
@@ -1073,7 +1155,7 @@ static EfErrCode move_env(env_meta_data_t env)
 
     /* prepare to delete the current ENV */
     if (env->status == ENV_WRITE) {
-        del_env(NULL, env, false);
+        del_env(NULL, env, false);//预删除
     }
 
     if ((env_addr = alloc_env(&sector, env->len)) != FAILED_ADDR) {
@@ -1127,6 +1209,10 @@ __exit:
     return result;
 }
 
+
+/***
+ * @return empty_env
+ */
 static uint32_t new_env(sector_meta_data_t sector, size_t env_size)
 {//env_hdr.len = ENV_HDR_DATA_SIZE + EF_WG_ALIGN(env_hdr.name_len) + EF_WG_ALIGN(env_hdr.value_len);
     bool already_gc = false;
@@ -1162,7 +1248,10 @@ static bool gc_check_cb(sector_meta_data_t sector, void *arg1, void *arg2)
     return false;
 
 }
-
+/**
+ * 执行清理callback
+ * @param sector 需要清理的sector
+ */
 static bool do_gc(sector_meta_data_t sector, void *arg1, void *arg2)
 {
     struct env_meta_data env;
@@ -1189,7 +1278,8 @@ static bool do_gc(sector_meta_data_t sector, void *arg1, void *arg2)
     return false;
 }
 
-/*
+/**
+ * 辣鸡清理程序
  * The GC will be triggered on the following scene:
  * 1. alloc an ENV when the flash not has enough space
  * 2. write an ENV then the flash not has enough space
@@ -1200,12 +1290,13 @@ static void gc_collect(void)
     size_t empty_sec = 0;
 
     /* GC check the empty sector number */
+    //寻找空的扇区(考虑到combined的话修改方案)
     sector_iterator(&sector, SECTOR_STORE_EMPTY, &empty_sec, NULL, gc_check_cb, false);
 
     /* do GC collect */
-    EF_DEBUG("The remain empty sector is %d, GC threshold is %d.\n", empty_sec, EF_GC_EMPTY_SEC_THRESHOLD);
+    EF_DEBUG("The remain empty sector is %d, GC threshold is %d.\n", empty_sec, EF_GC_EMPTY_SEC_THRESHOLD);//empty_sec 空的扇区个数
     if (empty_sec <= EF_GC_EMPTY_SEC_THRESHOLD) {
-        sector_iterator(&sector, SECTOR_STORE_UNUSED, NULL, NULL, do_gc, false);
+        sector_iterator(&sector, SECTOR_STORE_UNUSED, NULL, NULL, do_gc, false);//不遍历内部内容,只执行回调函数
     }
 
     gc_request = false;
@@ -1266,7 +1357,7 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
         return EF_ENV_FULL;
     }
 
-    if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {
+    if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {//如果 new_env成功,sector就已经和env_addr配对
         size_t align_remain;
         /* update the sector status */
         if (result == EF_NO_ERR) {
@@ -1287,12 +1378,12 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
                 env_hdr.crc32 = ef_calc_crc32(env_hdr.crc32, &ff, 1);
             }
             /* write ENV header data */
-            result = write_env_hdr(env_addr, &env_hdr);
+            result = write_env_hdr(env_addr, &env_hdr);//把CRC32校验值计算出来后,写入HDR中..函数中有把ENV区块状态变成准备写入.
 
         }
         /* write key name */
         if (result == EF_NO_ERR) {
-            result = align_write(env_addr + ENV_HDR_DATA_SIZE, (uint32_t *) key, env_hdr.name_len);
+            result = align_write(env_addr + ENV_HDR_DATA_SIZE, (uint32_t *) key, env_hdr.name_len);//实际写入key-name
 
 #ifdef EF_ENV_USING_CACHE
             if (!is_full) {
@@ -1383,7 +1474,7 @@ static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)
         env_is_found = find_env(key, &env);
         /* prepare to delete the old ENV */
         if (env_is_found) {
-            result = del_env(key, &env, false);
+            result = del_env(key, &env, false);//预删除
         }
         /* create the new ENV */
         if (result == EF_NO_ERR) {
@@ -1391,7 +1482,7 @@ static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)
         }
         /* delete the old ENV */
         if (env_is_found && result == EF_NO_ERR) {
-            result = del_env(key, &env, true);
+            result = del_env(key, &env, true);//完全删除
         }
         /* process the GC after set ENV */
         if (gc_request) {
@@ -1440,7 +1531,7 @@ void ef_bin_update_sector_combined(int sectorID)
     sector.addr = FAILED_ADDR;
     uint32_t sec_addr;
     int cnt = 0;
-    EfErrCode result = EF_NO_ERR;
+    //EfErrCode result = EF_NO_ERR;
     //uint8_t status_table[STORE_STATUS_TABLE_SIZE];
 
     //sector.combined
@@ -1457,6 +1548,7 @@ void ef_bin_update_sector_combined(int sectorID)
         if(cnt++ != sectorID)
             continue;
         format_sector(sector.addr, 2);
+        erase_sector(sector.addr + SECTOR_SIZE);
         // //判断逻辑下一个扇区无ENV..否则改成combined失败
         // if (result == EF_NO_ERR) {
         //     result = write_status(sector.addr, status_table, SECTOR_STORE_STATUS_NUM, SECTOR_STORE_USING);
@@ -1548,9 +1640,15 @@ void ef_bin_print_sector(void)
         /* search all ENV */
         while ((env.addr.start = get_next_env_addr(&sector, &env)) != FAILED_ADDR) {
             read_env(&env);
-            ef_print("[%.*s] -> %d\n", env.name_len, env.name, env.value_len);
+            if (env.crc_is_ok) {
+                ef_print("[%.*s] -> %d", env.name_len, env.name, env.value_len);
+                if(env.status == ENV_PRE_DELETE)
+                    ef_print(" <PD>");
+                else if(env.status == ENV_DELETED)
+                    ef_print(" <DEL>");
+                ef_print("\n");
+            }
         }
-
     }
     ef_print("========================================\n");
     ef_print("empty env size:%d\n",sector.empty_env);
