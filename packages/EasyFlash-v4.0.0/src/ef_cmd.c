@@ -118,6 +118,20 @@ static void printsector(uint8_t argc, char **argv)
 MSH_CMD_EXPORT(printsector, Print Sector Informations.);
 
 
+extern void ef_bin_update_sector_combined(int sectorID);
+static void sectorcombine(uint8_t argc, char **argv)
+{
+    if(argc > 1)
+    {
+        int id = atoi(argv[1]);
+        ef_bin_update_sector_combined(id);
+    }else{
+        rt_kprintf("sector combined error\n");
+    }
+
+}
+MSH_CMD_EXPORT(sectorcombine, Input Combine Sector ID.);
+
 #endif
 
 
