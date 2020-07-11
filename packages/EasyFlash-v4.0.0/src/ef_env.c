@@ -846,7 +846,10 @@ char *ef_get_env(const char *key)
 
     return NULL;
 }
-
+/***
+ * @param addr 实际写入的地址
+ * @param env_hdr 写入的参数指针
+ */
 static EfErrCode write_env_hdr(uint32_t addr, env_hdr_data_t env_hdr) {
     EfErrCode result = EF_NO_ERR;
     /* write the status will by write granularity */
@@ -887,7 +890,10 @@ static EfErrCode format_sector(uint32_t addr, uint32_t combined_value)
 
     return result;
 }
-
+/***
+ * @name 更新扇区状态
+ * @param sector 实际更新的扇区
+ */
 static EfErrCode update_sec_status(sector_meta_data_t sector, size_t new_env_len, bool *is_full)
 {
     uint8_t status_table[STORE_STATUS_TABLE_SIZE];
@@ -987,7 +993,12 @@ static bool alloc_cont_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
 
     return false;
 }
-
+/***
+ * @name 给ENV分配内存
+ * @param sector 扇区指针
+ * @param env_size 分配类型
+ * @return 可以写入的空EMPTY_ENV地址
+ */
 static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
 {
     uint32_t empty_env = FAILED_ADDR;
@@ -997,12 +1008,14 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
     sector_iterator(sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
     if (using_sector > 0) {
         /* alloc the ENV from the using status sector first */
-        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);
+        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//从USING状态的sector中寻找合适大小
     }
-    if (empty_sector > 0 && empty_env == FAILED_ADDR) {
-        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {
+    if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
+        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
             sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_cont_env_cb, true);//[env_size] is alloced param size
+            //如果ENV大于sector_size，需要执行合并操作..
         } else {
+            //空间不足,所以需要执行gc
             /* no space for new ENV now will GC and retry */
             EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
             gc_request = true;
@@ -1051,11 +1064,11 @@ static EfErrCode del_env(const char *key, env_meta_data_t old_env, bool complete
         last_is_complete_del = false;
     }
 
-    dirty_status_addr = EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET;
+    dirty_status_addr = EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET;//计算dirty_status的地址
     /* read and change the sector dirty status */
     if (result == EF_NO_ERR
             && read_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM) == SECTOR_DIRTY_FALSE) {
-        result = write_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM, SECTOR_DIRTY_TRUE);
+        result = write_status(dirty_status_addr, status_table, SECTOR_DIRTY_STATUS_NUM, SECTOR_DIRTY_TRUE);//把扇区状态改成已脏
     }
 
     return result;
@@ -1126,7 +1139,9 @@ __exit:
 
     return result;
 }
-
+/***
+ * @return empty_env
+ */
 static uint32_t new_env(sector_meta_data_t sector, size_t env_size)
 {//env_hdr.len = ENV_HDR_DATA_SIZE + EF_WG_ALIGN(env_hdr.name_len) + EF_WG_ALIGN(env_hdr.value_len);
     bool already_gc = false;
@@ -1266,7 +1281,7 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
         return EF_ENV_FULL;
     }
 
-    if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {
+    if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {//如果 new_env成功,sector就已经和env_addr配对
         size_t align_remain;
         /* update the sector status */
         if (result == EF_NO_ERR) {
@@ -1287,12 +1302,12 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
                 env_hdr.crc32 = ef_calc_crc32(env_hdr.crc32, &ff, 1);
             }
             /* write ENV header data */
-            result = write_env_hdr(env_addr, &env_hdr);
+            result = write_env_hdr(env_addr, &env_hdr);//把CRC32校验值计算出来后,写入HDR中..函数中有把ENV区块状态变成准备写入.
 
         }
         /* write key name */
         if (result == EF_NO_ERR) {
-            result = align_write(env_addr + ENV_HDR_DATA_SIZE, (uint32_t *) key, env_hdr.name_len);
+            result = align_write(env_addr + ENV_HDR_DATA_SIZE, (uint32_t *) key, env_hdr.name_len);//实际写入key-name
 
 #ifdef EF_ENV_USING_CACHE
             if (!is_full) {
@@ -1383,7 +1398,7 @@ static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)
         env_is_found = find_env(key, &env);
         /* prepare to delete the old ENV */
         if (env_is_found) {
-            result = del_env(key, &env, false);
+            result = del_env(key, &env, false);//预删除
         }
         /* create the new ENV */
         if (result == EF_NO_ERR) {
@@ -1391,7 +1406,7 @@ static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)
         }
         /* delete the old ENV */
         if (env_is_found && result == EF_NO_ERR) {
-            result = del_env(key, &env, true);
+            result = del_env(key, &env, true);//完全删除
         }
         /* process the GC after set ENV */
         if (gc_request) {

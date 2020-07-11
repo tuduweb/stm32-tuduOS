@@ -98,10 +98,10 @@ typedef enum {
 
 enum env_status {
     ENV_UNUSED,
-    ENV_PRE_WRITE,
-    ENV_WRITE,
-    ENV_PRE_DELETE,
-    ENV_DELETED,
+    ENV_PRE_WRITE,//准备写入
+    ENV_WRITE,//已写入
+    ENV_PRE_DELETE,//准备删除
+    ENV_DELETED,//已删除
     ENV_ERR_HDR,
     ENV_STATUS_NUM,
 };
