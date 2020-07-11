@@ -138,18 +138,18 @@
 
 enum sector_store_status {
     SECTOR_STORE_UNUSED,
-    SECTOR_STORE_EMPTY,
-    SECTOR_STORE_USING,
-    SECTOR_STORE_FULL,
+    SECTOR_STORE_EMPTY,//扇区空
+    SECTOR_STORE_USING,//扇区正在使用
+    SECTOR_STORE_FULL,//扇区全满
     SECTOR_STORE_STATUS_NUM,
 };
 typedef enum sector_store_status sector_store_status_t;
 
 enum sector_dirty_status {
     SECTOR_DIRTY_UNUSED,
-    SECTOR_DIRTY_FALSE,
-    SECTOR_DIRTY_TRUE,
-    SECTOR_DIRTY_GC,
+    SECTOR_DIRTY_FALSE,//干净
+    SECTOR_DIRTY_TRUE,//已脏
+    SECTOR_DIRTY_GC,//正在执行辣鸡回收
     SECTOR_DIRTY_STATUS_NUM,
 };
 typedef enum sector_dirty_status sector_dirty_status_t;
@@ -1011,20 +1011,40 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
         sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//从USING状态的sector中寻找合适大小
     }
     if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
-        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
-            sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_cont_env_cb, true);//[env_size] is alloced param size
-            //如果ENV大于sector_size，需要执行合并操作..
-        } else {
-            //空间不足,所以需要执行gc
-            /* no space for new ENV now will GC and retry */
-            EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
-            gc_request = true;
+        
+        if(env_size <= SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+        {
+            if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
+                sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
+                //如果ENV大于sector_size，需要执行合并操作..
+            } else {
+                //空间不足,所以需要执行gc
+                /* no space for new ENV now will GC and retry */
+                EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
+                gc_request = true;
+            }
+        }else{
+            //需要连续扇区的大小
+            int contSectorSize = (env_size - SECTOR_HDR_DATA_SIZE) / SECTOR_SIZE;
+
+            //查找连续扇区
+
+            //env_size比较大的情况,那么需要跨区!查找连续扇区
+            //这个过程应该弄成缓存,在空闲的时候执行
+            EF_INFO("env_size %d Too Big\n", env_size);//edit:add
+            return empty_env;
+
         }
+        
+
     }
     EF_INFO("empty_env 0x%x\n", empty_env);//edit:add
     return empty_env;
 }
-
+/***
+ * 假删除变量
+ * @param complete_del 是否完全删除(预删除/已删除) 区分不同状态,防止数据丢失
+ */
 static EfErrCode del_env(const char *key, env_meta_data_t old_env, bool complete_del) {
     EfErrCode result = EF_NO_ERR;
     uint32_t dirty_status_addr;
@@ -1074,8 +1094,11 @@ static EfErrCode del_env(const char *key, env_meta_data_t old_env, bool complete
     return result;
 }
 
-/*
+/**
  * move the ENV to new space
+ * 搬运变量,搬哪里呢
+ * 基本都满了才执行clean,那么搬运肯定是往阈值扇区里面搬了,阈值扇区满了那么也应该有空闲了
+ * @param env 需要搬运的变量结构体
  */
 static EfErrCode move_env(env_meta_data_t env)
 {
@@ -1086,7 +1109,7 @@ static EfErrCode move_env(env_meta_data_t env)
 
     /* prepare to delete the current ENV */
     if (env->status == ENV_WRITE) {
-        del_env(NULL, env, false);
+        del_env(NULL, env, false);//预删除
     }
 
     if ((env_addr = alloc_env(&sector, env->len)) != FAILED_ADDR) {
@@ -1139,6 +1162,8 @@ __exit:
 
     return result;
 }
+
+
 /***
  * @return empty_env
  */
@@ -1177,7 +1202,10 @@ static bool gc_check_cb(sector_meta_data_t sector, void *arg1, void *arg2)
     return false;
 
 }
-
+/**
+ * 执行清理callback
+ * @param sector 需要清理的sector
+ */
 static bool do_gc(sector_meta_data_t sector, void *arg1, void *arg2)
 {
     struct env_meta_data env;
@@ -1204,7 +1232,8 @@ static bool do_gc(sector_meta_data_t sector, void *arg1, void *arg2)
     return false;
 }
 
-/*
+/**
+ * 辣鸡清理程序
  * The GC will be triggered on the following scene:
  * 1. alloc an ENV when the flash not has enough space
  * 2. write an ENV then the flash not has enough space
@@ -1215,12 +1244,13 @@ static void gc_collect(void)
     size_t empty_sec = 0;
 
     /* GC check the empty sector number */
+    //寻找空的扇区(考虑到combined的话修改方案)
     sector_iterator(&sector, SECTOR_STORE_EMPTY, &empty_sec, NULL, gc_check_cb, false);
 
     /* do GC collect */
-    EF_DEBUG("The remain empty sector is %d, GC threshold is %d.\n", empty_sec, EF_GC_EMPTY_SEC_THRESHOLD);
+    EF_DEBUG("The remain empty sector is %d, GC threshold is %d.\n", empty_sec, EF_GC_EMPTY_SEC_THRESHOLD);//empty_sec 空的扇区个数
     if (empty_sec <= EF_GC_EMPTY_SEC_THRESHOLD) {
-        sector_iterator(&sector, SECTOR_STORE_UNUSED, NULL, NULL, do_gc, false);
+        sector_iterator(&sector, SECTOR_STORE_UNUSED, NULL, NULL, do_gc, false);//不遍历内部内容,只执行回调函数
     }
 
     gc_request = false;
