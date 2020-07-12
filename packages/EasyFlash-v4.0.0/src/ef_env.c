@@ -1057,7 +1057,7 @@ static void sector_wander()
     while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
         i++;
         read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
-        ef_print("%d %d \t", sector.remain, sector.status.store);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        ef_print("%d\t[%c]\t", sector.remain, sector.status.store == SECTOR_STORE_EMPTY ? 'E' : (sector.status.store == SECTOR_STORE_FULL ? 'F' : 'O') );//如果输出0可能是sector的状态为Full (有阈值可以来调整)
         //遍历sector里面的env
         if(i % 3 == 0)
             ef_print("\n");
@@ -1065,7 +1065,61 @@ static void sector_wander()
     ef_print("\n========================================\n");
     //ef_port_env_unlock();
 }
+/**
+ * 寻找连续的扇区
+ * @param sector 返回值
+ * @param env_size 寻找的扇区大小
+ */
+static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_size)
+{
+    uint32_t sec_addr,first_sec_addr = FAILED_ADDR,last_sec_addr = FAILED_ADDR;
+    int contCnt = 0;
+    int i = 0;
+    int env_size_temp = (int)env_size;
+    EF_ASSERT(env_size > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);
 
+    ef_print("FIND %d size\n", env_size_temp);
+
+
+    while ((sec_addr = get_next_sector_addr(sector)) != FAILED_ADDR) {
+        read_sector_meta_data(sec_addr, sector, true);//读扇区meta信息
+        if(sector->check_ok == true)
+        {
+            if(sector->status.store == SECTOR_STORE_EMPTY)
+            {
+                //记录第一个位置的addr
+                // if(env_size_temp == env_size)
+                //     first_sec_addr = sec_addr;
+                // if(first_sec_addr == FAILED_ADDR)
+                //     first_sec_addr = sec_addr;
+                env_size_temp -= SECTOR_SIZE;
+                if(env_size_temp < SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+                {
+                    ef_print("[%d] find okk, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
+                    break;
+                }
+            }else{
+                if(sector->combined == SECTOR_NOT_COMBINED)
+                    first_sec_addr = sec_addr;//记录为..
+                else
+                    first_sec_addr = sec_addr + sector->combined;//后面用是否整除判断是否那啥
+                
+                env_size_temp = (int)env_size;
+            }
+        }
+
+        i++;
+    }
+
+    if(env_size_temp < SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+    {
+        return first_sec_addr;
+    }else{
+        return FAILED_ADDR;
+    }
+    
+
+}
 
 /***
  * @name 给ENV分配内存
@@ -1107,6 +1161,8 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
             //这个过程应该弄成缓存,在空闲的时候执行
             EF_INFO("env_size %d Too Big\nNEED Cont-Sector<%d> to Write\n", env_size, contSectorSize + 1);//edit:add
             sector_wander();
+            sector->addr = FAILED_ADDR;
+            contsector_wander_find(sector, env_size);
             return empty_env;
 
         }
@@ -1660,7 +1716,10 @@ void ef_bin_print_sector(void)
     while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
         read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
         ef_print("\n========================================\n");
-        ef_print("sector%d %d | combined:%x\n",i++, sector.remain, sector.combined);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        ef_print("box%d FSec%d 0x%x\t|", i++, sector.addr / SECTOR_SIZE, sector.addr);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        ef_print("%d %d\n", sector.remain, sector.combined == SECTOR_NOT_COMBINED ? 1 : sector.combined);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+
+
         //遍历sector里面的env
         
         struct env_meta_data env;
