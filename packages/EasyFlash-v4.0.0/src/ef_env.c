@@ -1085,7 +1085,8 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
         read_sector_meta_data(sec_addr, sector, true);//读扇区meta信息
         if(sector->check_ok == true)
         {
-            if(sector->status.store == SECTOR_STORE_EMPTY)
+            //条件还需要改造.是combined的也可以存储.
+            if(sector->status.store == SECTOR_STORE_EMPTY && sector->combined == SECTOR_NOT_COMBINED)
             {
                 //记录第一个位置的addr
                 // if(env_size_temp == env_size)
@@ -1093,7 +1094,10 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
                 // if(first_sec_addr == FAILED_ADDR)
                 //     first_sec_addr = sec_addr;
                 env_size_temp -= SECTOR_SIZE;
-                if(env_size_temp < SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+
+                //不转换成Int型无法比较..
+                //TODO:最好的办法在计算之前加上,减少类型转换
+                if(env_size_temp < -(int)SECTOR_HDR_DATA_SIZE)
                 {
                     ef_print("[%d] find okk, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
                     break;
@@ -1111,12 +1115,31 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
         i++;
     }
 
-    if(env_size_temp < SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+    //这种情况可能无法完成存储任务..
+    if(env_size_temp > - (int)SECTOR_HDR_DATA_SIZE)//env_size_temp > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE
     {
-        return first_sec_addr;
-    }else{
+        ef_print("No enough space to save ENV&HDR(%dbyte)", env_size);
         return FAILED_ADDR;
     }
+
+    /* 判断首扇区是否是合并的扇区(合并的扇区暂时不参与存储,需要改造combined结构) 算出来了first_sec_addr说明后面还有扇区?*/
+    if(first_sec_addr % SECTOR_SIZE > 0)
+        first_sec_addr = first_sec_addr - (first_sec_addr % SECTOR_SIZE) + (first_sec_addr % SECTOR_SIZE) * SECTOR_SIZE;
+    else{
+        //首sec不是combined的.那么可能有空间可以利用..查找这个空间
+        read_sector_meta_data(first_sec_addr, sector, true);//读扇区meta信息
+        if(sector->remain >= env_size_temp + SECTOR_SIZE)
+        {
+            //这个SECTOR大小够用,不需要再往后多占一个
+
+        }else{
+            //大小不够..需要往后占用
+            first_sec_addr += SECTOR_SIZE;
+        }
+    }
+    ef_print("[%d] find final, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
+    return first_sec_addr;
+    
     
 
 }
@@ -1136,7 +1159,9 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
     sector_iterator(sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
     if (using_sector > 0) {
         /* alloc the ENV from the using status sector first */
-        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//从USING状态的sector中寻找合适大小
+        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);
+        //从USING状态的sector中寻找合适大小
+        //那么可能有的combined的sector是EMPTY,会被忽略
     }
     if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
         
@@ -1162,7 +1187,9 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
             EF_INFO("env_size %d Too Big\nNEED Cont-Sector<%d> to Write\n", env_size, contSectorSize + 1);//edit:add
             sector_wander();
             sector->addr = FAILED_ADDR;
-            contsector_wander_find(sector, env_size);
+            //没找到
+            if( (empty_env = contsector_wander_find(sector, env_size)) == FAILED_ADDR)
+                return FAILED_ADDR;
             return empty_env;
 
         }
@@ -1715,6 +1742,8 @@ void ef_bin_print_sector(void)
 
     while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
         read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
+        if(sector.check_ok == false)
+            continue;
         ef_print("\n========================================\n");
         ef_print("box%d FSec%d 0x%x\t|", i++, sector.addr / SECTOR_SIZE, sector.addr);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
         ef_print("%d %d\n", sector.remain, sector.combined == SECTOR_NOT_COMBINED ? 1 : sector.combined);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
