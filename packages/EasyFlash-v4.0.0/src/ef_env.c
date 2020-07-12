@@ -129,6 +129,7 @@
 
 #define SECTOR_HDR_DATA_SIZE                     (EF_WG_ALIGN(sizeof(struct sector_hdr_data)))
 #define SECTOR_DIRTY_OFFSET                      ((unsigned long)(&((struct sector_hdr_data *)0)->status_table.dirty))
+#define SECTOR_COMBINED_OFFSET                   ((unsigned long)(&((struct sector_hdr_data *)0)->combined))
 #define ENV_HDR_DATA_SIZE                        (EF_WG_ALIGN(sizeof(struct env_hdr_data)))
 #define ENV_MAGIC_OFFSET                         ((unsigned long)(&((struct env_hdr_data *)0)->magic))
 #define ENV_LEN_OFFSET                           ((unsigned long)(&((struct env_hdr_data *)0)->len))
@@ -1017,7 +1018,7 @@ static bool alloc_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
             && ((sector->status.dirty == SECTOR_DIRTY_FALSE)
                     || (sector->status.dirty == SECTOR_DIRTY_TRUE && !gc_request))) {
         *empty_env = sector->empty_env;
-        return true;
+        return true;//return true will interrrupt iterator
     }
 
     return false;
@@ -1131,14 +1132,15 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
         if(sector->remain >= env_size_temp + SECTOR_SIZE)
         {
             //这个SECTOR大小够用,不需要再往后多占一个
+            first_sec_addr = sector->empty_env;
 
         }else{
             //大小不够..需要往后占用
-            first_sec_addr += SECTOR_SIZE;
+            first_sec_addr += SECTOR_SIZE + SECTOR_HDR_DATA_SIZE;
         }
     }
     ef_print("[%d] find final, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
-    return first_sec_addr;
+    return first_sec_addr;//返回值是empty_env地址..
     
     
 
@@ -1159,7 +1161,7 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
     sector_iterator(sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
     if (using_sector > 0) {
         /* alloc the ENV from the using status sector first */
-        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);
+        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//env_size参数的作用是限制查找using-sector的条件
         //从USING状态的sector中寻找合适大小
         //那么可能有的combined的sector是EMPTY,会被忽略
     }
@@ -1178,7 +1180,7 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
             }
         }else{
             //需要连续扇区的大小
-            int contSectorSize = (env_size - SECTOR_HDR_DATA_SIZE) / SECTOR_SIZE;
+            int contSectorSize = env_size / SECTOR_SIZE;
 
             //查找连续扇区
 
@@ -1190,6 +1192,17 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
             //没找到
             if( (empty_env = contsector_wander_find(sector, env_size)) == FAILED_ADDR)
                 return FAILED_ADDR;
+            //非FAILED_ADDR
+            //执行更改combined参数
+            //更改combined参数
+            uint32_t sector_addr = EF_ALIGN_DOWN(empty_env, SECTOR_SIZE);//(empty_env >> 12) << 12;
+            EF_INFO("SECTOR START ADDR 0x%x\n", sector_addr);//EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET
+            
+            //sector->status
+            //ef_port_write(sector_addr + SECTOR_COMBINED_OFFSET,);
+            uint32_t buf = 0;
+            ef_port_read(sector_addr + SECTOR_COMBINED_OFFSET,&buf,4);
+            ef_print("Test Read[0x%x] 0x%x\n", sector_addr + SECTOR_COMBINED_OFFSET, buf);
             return empty_env;
 
         }
@@ -1767,8 +1780,6 @@ void ef_bin_print_sector(void)
             }
         }
     }
-    ef_print("========================================\n");
-    ef_print("empty env size:%d\n",sector.empty_env);
     ef_print("========================================\n");
 
 
