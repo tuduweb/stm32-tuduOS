@@ -553,7 +553,8 @@ static EfErrCode read_env(env_meta_data_t env)
         return EF_READ_ERR;
     } else if (env->len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE && env->len < ENV_AREA_SIZE) {//ENV长度超出一个扇区的范围,需要跨扇区读取
         //TODO 扇区连续模式，或者写入长度没有写入完整
-        EF_ASSERT(0);
+        
+        //EF_ASSERT(0);
     }
     //读取CRC,校验CRC
     /* CRC32 data len(header.name_len + header.value_len + name + value) */
@@ -1164,19 +1165,22 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
         //那么可能有的combined的sector是EMPTY,会被忽略
     }
     if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
-        //这里的逻辑还需要修改修改..
-        if(env_size <= SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
+    
+        //默认不需要合并,在全部空闲扇区中查找合适的
+        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
+            sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
+            //如果ENV大于sector_size，需要执行合并操作..
+        } else {
+            //空间不足,所以需要执行gc
+            /* no space for new ENV now will GC and retry */
+            EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
+            gc_request = true;
+        }
+
+        //正常的里面没找到，那么尝试合并解决问题
+        if(empty_env == FAILED_ADDR)
         {
-            if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
-                sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
-                //如果ENV大于sector_size，需要执行合并操作..
-            } else {
-                //空间不足,所以需要执行gc
-                /* no space for new ENV now will GC and retry */
-                EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
-                gc_request = true;
-            }
-        }else{
+
             //需要连续扇区的大小
             uint32_t contSectorSize = env_size / SECTOR_SIZE + 1;
 
@@ -1229,9 +1233,8 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
             }
             
             return empty_env;
-
         }
-        
+
 
     }
     EF_INFO("empty_env 0x%x\n", empty_env);//edit:add
@@ -1502,10 +1505,11 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
     env_hdr.len = ENV_HDR_DATA_SIZE + EF_WG_ALIGN(env_hdr.name_len) + EF_WG_ALIGN(env_hdr.value_len);
     //这里限制了不允许连续写入 如果改写连续写入模式,需要修改
     //这里是说.需要写入的ENV > 扇区
-    if (env_hdr.len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE) {
-        EF_INFO("Error: The ENV size is too big\n");
-        return EF_ENV_FULL;
-    }
+
+    // if (env_hdr.len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE) {
+    //     EF_INFO("Error: The ENV size is too big\n");
+    //     return EF_ENV_FULL;
+    // }
 
     if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {//如果 new_env成功,sector就已经和env_addr配对
         size_t align_remain;
