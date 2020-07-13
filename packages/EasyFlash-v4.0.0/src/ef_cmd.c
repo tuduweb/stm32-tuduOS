@@ -80,7 +80,7 @@ MSH_CMD_EXPORT(resetenv, Reset all envrionment variable to default.);
 
 
 #if 1
-#define MY_STRING_SIZE 4224
+#define MY_STRING_SIZE 10000
 char string[MY_STRING_SIZE] = {'@'};
 
 static void setbatchenv(uint8_t argc, char **argv)
