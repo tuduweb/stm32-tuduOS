@@ -129,6 +129,7 @@
 
 #define SECTOR_HDR_DATA_SIZE                     (EF_WG_ALIGN(sizeof(struct sector_hdr_data)))
 #define SECTOR_DIRTY_OFFSET                      ((unsigned long)(&((struct sector_hdr_data *)0)->status_table.dirty))
+#define SECTOR_COMBINED_OFFSET                   ((unsigned long)(&((struct sector_hdr_data *)0)->combined))
 #define ENV_HDR_DATA_SIZE                        (EF_WG_ALIGN(sizeof(struct env_hdr_data)))
 #define ENV_MAGIC_OFFSET                         ((unsigned long)(&((struct env_hdr_data *)0)->magic))
 #define ENV_LEN_OFFSET                           ((unsigned long)(&((struct env_hdr_data *)0)->len))
@@ -499,7 +500,7 @@ static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre
             /* check and find next ENV address */
             if( sector->combined == SECTOR_NOT_COMBINED)
             {
-                addr = find_next_env_addr(addr, sector->addr + SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end// end为没有combined的尾
+                addr = find_next_env_addr(addr, sector->addr + SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);//start,end// end为没有combined的尾 // end这里为什么要减去SECTOR_HDR_DATA_SIZE?
                 ////ef_print("find_next_env_addr 0x%x , 0x%x\n", addr, sector->addr);
                 if (addr > sector->addr + SECTOR_SIZE || pre_env->len == 0) {//next-addr超出了扇区范围
                     return FAILED_ADDR;
@@ -552,7 +553,8 @@ static EfErrCode read_env(env_meta_data_t env)
         return EF_READ_ERR;
     } else if (env->len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE && env->len < ENV_AREA_SIZE) {//ENV长度超出一个扇区的范围,需要跨扇区读取
         //TODO 扇区连续模式，或者写入长度没有写入完整
-        EF_ASSERT(0);
+        
+        //EF_ASSERT(0);
     }
     //读取CRC,校验CRC
     /* CRC32 data len(header.name_len + header.value_len + name + value) */
@@ -587,7 +589,9 @@ static EfErrCode read_env(env_meta_data_t env)
 }
 
 /**
- * @param traversal 是否遍历内部ENV情况,统计信息
+ * 读取扇区meta信息
+ * @param traversal 是否遍历内部ENV情况,统计信息.
+ * @param traversal<false> 只有addr,magic,check_ok,combined,status
  */
 static EfErrCode read_sector_meta_data(uint32_t addr, sector_meta_data_t sector, bool traversal)
 {//把信息读到sector指针实体中
@@ -928,11 +932,9 @@ static EfErrCode format_sector(uint32_t addr, uint32_t combined_value)
 //增加的函数
 static EfErrCode erase_sector(uint32_t addr)
 {
-    EfErrCode result = EF_NO_ERR;
     EF_ASSERT(addr % SECTOR_SIZE == 0);
 
-    result = ef_port_erase( addr, SECTOR_SIZE);
-    return result;
+    return ef_port_erase( addr, SECTOR_SIZE);
 }
 
 
@@ -1015,7 +1017,7 @@ static bool alloc_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
             && ((sector->status.dirty == SECTOR_DIRTY_FALSE)
                     || (sector->status.dirty == SECTOR_DIRTY_TRUE && !gc_request))) {
         *empty_env = sector->empty_env;
-        return true;
+        return true;//return true will interrrupt iterator
     }
 
     return false;
@@ -1039,6 +1041,111 @@ static bool alloc_cont_env_cb(sector_meta_data_t sector, void *arg1, void *arg2)
 
     return false;
 }
+/**
+ * 新增 连续扇区测试程序
+ * @name 连续扇区测试
+ */
+static void sector_wander()
+{
+    struct sector_meta_data sector;
+    uint32_t sec_addr;
+    size_t i = 0;
+    sector.addr = FAILED_ADDR;
+    //ef_port_env_lock();
+    ef_print("========================================\n");
+
+    while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+        i++;
+        read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
+        ef_print("%d\t[%c]\t", sector.remain, sector.status.store == SECTOR_STORE_EMPTY ? 'E' : (sector.status.store == SECTOR_STORE_FULL ? 'F' : 'O') );//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        //遍历sector里面的env
+        if(i % 3 == 0)
+            ef_print("\n");
+    }
+    ef_print("\n========================================\n");
+    //ef_port_env_unlock();
+}
+/**
+ * 寻找连续的扇区
+ * @param sector 返回值
+ * @param env_size 寻找的扇区大小
+ */
+static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_size)
+{
+    uint32_t sec_addr,first_sec_addr = FAILED_ADDR,last_sec_addr = FAILED_ADDR;
+    int contCnt = 0;
+    int i = 0;
+    int env_size_temp = (int)env_size;
+    EF_ASSERT(env_size > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE);
+
+    ef_print("FIND %d size\n", env_size_temp);
+
+
+    while ((sec_addr = get_next_sector_addr(sector)) != FAILED_ADDR) {
+        read_sector_meta_data(sec_addr, sector, true);//读扇区meta信息
+        if(sector->check_ok == true)
+        {
+            //需要解决首sector为empty的情况
+            //条件还需要改造.是combined的也可以存储.
+            if(sector->status.store == SECTOR_STORE_EMPTY && sector->combined == SECTOR_NOT_COMBINED)
+            {
+                //记录第一个位置的addr
+                // if(env_size_temp == env_size)
+                //     first_sec_addr = sec_addr;
+                // if(first_sec_addr == FAILED_ADDR)
+                //     first_sec_addr = sec_addr;
+                env_size_temp -= SECTOR_SIZE;
+
+                //不转换成Int型无法比较..
+                //TODO:最好的办法在计算之前加上,减少类型转换
+                if(env_size_temp < -(int)SECTOR_HDR_DATA_SIZE)
+                {
+                    ef_print("[%d] find okk, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
+                    break;
+                }
+            }else{
+                if(sector->combined == SECTOR_NOT_COMBINED)
+                    first_sec_addr = sec_addr;//记录为..
+                else
+                    first_sec_addr = sec_addr + sector->combined;//后面用是否整除判断是否那啥
+                
+                env_size_temp = (int)env_size;
+            }
+        }
+
+        i++;
+    }
+
+    //这种情况可能无法完成存储任务..
+    if(env_size_temp > - (int)SECTOR_HDR_DATA_SIZE)//env_size_temp > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE
+    {
+        ef_print("No enough space to save ENV&HDR(%dbyte)", env_size);
+        return FAILED_ADDR;
+    }
+
+    /* 判断首扇区是否是合并的扇区(合并的扇区暂时跳过,因需要改造combined结构) 算出来了first_sec_addr说明后面还有扇区?*/
+    if(first_sec_addr % SECTOR_SIZE > 0)
+        first_sec_addr = first_sec_addr - (first_sec_addr % SECTOR_SIZE) + (first_sec_addr % SECTOR_SIZE) * SECTOR_SIZE + SECTOR_HDR_DATA_SIZE;
+    else{
+        //首sec不是combined的.那么可能有空间可以利用..查找这个空间
+        read_sector_meta_data(first_sec_addr, sector, true);//读扇区meta信息
+        if(sector->remain >= env_size_temp + SECTOR_SIZE)
+        {
+            //这个SECTOR大小够用,不需要再往后多占一个,返回当前空地址
+            first_sec_addr = sector->empty_env;
+
+        }else{
+            //大小不够..需要往后占用.那么就是EMPTY扇区的empty_env.也就是偏移
+            first_sec_addr = sector->addr + SECTOR_SIZE + SECTOR_HDR_DATA_SIZE;
+        }
+    }
+    ef_print("[%d] find final, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
+    return first_sec_addr;//返回值是empty_env地址..
+    
+    
+
+}
+
 /***
  * @name 给ENV分配内存
  * @param sector 扇区指针
@@ -1054,36 +1161,89 @@ static uint32_t alloc_env(sector_meta_data_t sector, size_t env_size)
     sector_iterator(sector, SECTOR_STORE_UNUSED, &empty_sector, &using_sector, sector_statistics_cb, false);
     if (using_sector > 0) {
         /* alloc the ENV from the using status sector first */
-        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//从USING状态的sector中寻找合适大小
+        sector_iterator(sector, SECTOR_STORE_USING, &env_size, &empty_env, alloc_env_cb, true);//env_size参数的作用是限制查找using-sector的条件
+        //从USING状态的sector中寻找合适大小
+        //那么可能有的combined的sector是EMPTY,会被忽略
     }
     if (empty_sector > 0 && empty_env == FAILED_ADDR) {//上面没有找到合适的empty_env，此时还有empty_sector
-        
-        if(env_size <= SECTOR_SIZE - SECTOR_HDR_DATA_SIZE)
-        {
-            if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
-                sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
-                //如果ENV大于sector_size，需要执行合并操作..
-            } else {
-                //空间不足,所以需要执行gc
-                /* no space for new ENV now will GC and retry */
-                EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
-                gc_request = true;
+    
+        //默认不需要合并,在全部空闲扇区中查找合适的
+        if (empty_sector > EF_GC_EMPTY_SEC_THRESHOLD || gc_request) {//empty_sector数量大于阈值,阈值sector是留着给gc的
+            sector_iterator(sector, SECTOR_STORE_EMPTY, &env_size, &empty_env, alloc_env_cb, true);//[env_size] is alloced param size
+            //如果ENV大于sector_size，需要执行合并操作..
+            if(empty_env != FAILED_ADDR)
+            {
+                ef_print("empty_sector: ENV 0x%x\n", empty_env);
             }
-        }else{
+        } else {
+            //空间不足,所以需要执行gc
+            /* no space for new ENV now will GC and retry */
+            EF_DEBUG("Trigger a GC check after alloc ENV failed.\n");
+            gc_request = true;
+        }
+
+        //正常的里面没找到，那么尝试合并解决问题
+        if(empty_env == FAILED_ADDR)
+        {
+
             //需要连续扇区的大小
-            int contSectorSize = (env_size - SECTOR_HDR_DATA_SIZE) / SECTOR_SIZE;
+            uint32_t contSectorSize = env_size / SECTOR_SIZE + 1;
 
             //查找连续扇区
 
             //env_size比较大的情况,那么需要跨区!查找连续扇区
             //这个过程应该弄成缓存,在空闲的时候执行
-            EF_INFO("env_size %d Too Big\n", env_size);//edit:add
-            return empty_env;
+            EF_INFO("env_size %d Too Big\nNEED Cont-Sector<%d> to Write\n", env_size, contSectorSize);//edit:add
+            sector_wander();
+            sector->addr = FAILED_ADDR;
+            //没找到
+            if( (empty_env = contsector_wander_find(sector, env_size)) == FAILED_ADDR)
+                return FAILED_ADDR;
+            //非FAILED_ADDR
+            //执行更改combined参数
+            //更改combined参数
+            uint32_t sector_addr = EF_ALIGN_DOWN(empty_env, SECTOR_SIZE);//(empty_env >> 12) << 12;
+            EF_INFO("SECTOR START ADDR 0x%x\n", sector_addr);//EF_ALIGN_DOWN(old_env->addr.start, SECTOR_SIZE) + SECTOR_DIRTY_OFFSET
+            
+            //sector->status
+            //ef_port_write(sector_addr + SECTOR_COMBINED_OFFSET,);
+            uint32_t buf = 0;
+            EfErrCode result;
+            ef_port_read(sector_addr + SECTOR_COMBINED_OFFSET, &buf, 4);
+            ef_print("Test Read[0x%x] 0x%x\n", sector_addr + SECTOR_COMBINED_OFFSET, buf);
 
+            //擦除后面几个…
+            //ANSWER:不擦除出问题了..暂时擦除,后面再判断不擦除的作用
+            //TODO:修改,怎么样合理的使擦除次数变少呢(延长硬件使用寿命)
+            {
+                //从后一个扇区开始擦除.无论什么情况，第一个扇区应该都不需要擦除的,只需要修改combined(BUG Fix)
+                int eraseI = 1;
+                result = EF_NO_ERR;
+                for(; eraseI < contSectorSize && result == EF_NO_ERR; eraseI++)
+                {
+                    result = erase_sector(sector_addr + eraseI * SECTOR_SIZE);
+                }
+                if(eraseI < contSectorSize)
+                {
+                    ef_print("ALLOC erase sector 0x%x error\n",sector_addr + eraseI * SECTOR_SIZE - SECTOR_SIZE);//这里的变量可能需要斟酌一下
+                    return FAILED_ADDR;
+                }
+            }
+            //改变sector
+            read_sector_meta_data(sector_addr, sector, true);
+            result = ef_port_write(sector_addr + SECTOR_COMBINED_OFFSET, &contSectorSize, 4);
+            if(result != EF_NO_ERR)
+            {
+                ef_print("Change sector CONBINED error\n");
+                return FAILED_ADDR;
+            }
+            
+            //return empty_env;
         }
-        
+
 
     }
+    //返回的得是.空empty地址.不是别的!
     EF_INFO("empty_env 0x%x\n", empty_env);//edit:add
     return empty_env;
 }
@@ -1352,13 +1512,15 @@ static EfErrCode create_env_blob(sector_meta_data_t sector, const char *key, con
     env_hdr.len = ENV_HDR_DATA_SIZE + EF_WG_ALIGN(env_hdr.name_len) + EF_WG_ALIGN(env_hdr.value_len);
     //这里限制了不允许连续写入 如果改写连续写入模式,需要修改
     //这里是说.需要写入的ENV > 扇区
-    if (env_hdr.len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE) {
-        EF_INFO("Error: The ENV size is too big\n");
-        return EF_ENV_FULL;
-    }
+
+    // if (env_hdr.len > SECTOR_SIZE - SECTOR_HDR_DATA_SIZE) {
+    //     EF_INFO("Error: The ENV size is too big\n");
+    //     return EF_ENV_FULL;
+    // }
 
     if (env_addr != FAILED_ADDR || (env_addr = new_env(sector, env_hdr.len)) != FAILED_ADDR) {//如果 new_env成功,sector就已经和env_addr配对
         size_t align_remain;
+        ef_print("BLOB WRITE addr 0x%x\n", env_addr);
         /* update the sector status */
         if (result == EF_NO_ERR) {
             result = update_sec_status(sector, env_hdr.len, &is_full);
@@ -1467,7 +1629,7 @@ static EfErrCode set_env(const char *key, const void *value_buf, size_t buf_len)
         result = del_env(key, NULL, true);
     } else {
         /* make sure the flash has enough space */
-        if (new_env_by_kv(&sector, strlen(key), buf_len) == FAILED_ADDR) {
+        if (new_env_by_kv(&sector, strlen(key), buf_len) == FAILED_ADDR) {//sector有关键性作用
             EF_INFO("EF_ENV_FULL\n");
             return EF_ENV_FULL;
         }
@@ -1629,9 +1791,14 @@ void ef_bin_print_sector(void)
     ef_port_env_lock();
 
     while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
-        read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
         ef_print("\n========================================\n");
-        ef_print("sector%d %d | combined:%x\n",i++, sector.remain, sector.combined);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        read_sector_meta_data(sec_addr, &sector, true);//读扇区meta信息
+        if(sector.check_ok == false)
+            continue;
+        ef_print("box%d FSec%d 0x%x\t|", i++, sector.addr / SECTOR_SIZE, sector.addr);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+        ef_print("%d %d\n", sector.remain, sector.combined == SECTOR_NOT_COMBINED ? 1 : sector.combined);//如果输出0可能是sector的状态为Full (有阈值可以来调整)
+
+
         //遍历sector里面的env
         
         struct env_meta_data env;
@@ -1650,8 +1817,6 @@ void ef_bin_print_sector(void)
             }
         }
     }
-    ef_print("========================================\n");
-    ef_print("empty env size:%d\n",sector.empty_env);
     ef_print("========================================\n");
 
 
