@@ -1069,6 +1069,7 @@ static void sector_wander()
  * 寻找连续的扇区
  * @param sector 返回值
  * @param env_size 寻找的扇区大小
+ * @bugFix 20200717修复首扇区问题
  */
 static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_size)
 {
@@ -1100,6 +1101,9 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
                 //TODO:最好的办法在计算之前加上,减少类型转换
                 if(env_size_temp < -(int)SECTOR_HDR_DATA_SIZE)
                 {
+                    /* 判断首扇区是否为FAIL_ADDR */
+                    if(first_sec_addr == FAILED_ADDR)
+                        first_sec_addr = 0;
                     ef_print("[%d] find okk, [0x%x,0x%x]\n", i, first_sec_addr, sec_addr);
                     break;
                 }
@@ -1122,7 +1126,6 @@ static uint32_t contsector_wander_find(sector_meta_data_t sector, size_t env_siz
         ef_print("No enough space to save ENV&HDR(%dbyte)", env_size);
         return FAILED_ADDR;
     }
-
     /* 判断首扇区是否是合并的扇区(合并的扇区暂时跳过,因需要改造combined结构) 算出来了first_sec_addr说明后面还有扇区?*/
     if(first_sec_addr % SECTOR_SIZE > 0)
         first_sec_addr = first_sec_addr - (first_sec_addr % SECTOR_SIZE) + (first_sec_addr % SECTOR_SIZE) * SECTOR_SIZE + SECTOR_HDR_DATA_SIZE;
