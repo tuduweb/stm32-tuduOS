@@ -521,7 +521,7 @@ int dfs_xipfs_getdents(struct dfs_fd *fd, struct dirent *dirp, uint32_t count)
     root_dirent_t dir;
     rt_uint32_t index;
     struct dirent *d;
-    uint32_t sec_addr = 0xFFFFFFFF;
+    //uint32_t sec_addr = 0xFFFFFFFF;
 
     //getdents may convert from the native format to fill the linux_dirent.
 
@@ -543,7 +543,7 @@ int dfs_xipfs_getdents(struct dfs_fd *fd, struct dirent *dirp, uint32_t count)
 
         //从env_dev中获取目录信息 input: dir
         //env_get_fs_getdents
-        if( env_get_fs_getdents(&dir->env,&sec_addr) == false)
+        if( env_get_fs_getdents(&dir->env, &dir->sec_addr) == false)
             return 0;//新增一个跳出条件,用来测试
         //rt_kprintf("sector_addr 0x%x\n", sec_addr);
 

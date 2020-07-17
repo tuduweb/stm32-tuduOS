@@ -2299,34 +2299,45 @@ bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p)
     //static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre_env)
     ef_port_env_lock();
 
-    struct sector_meta_data sector;
-    uint32_t sec_addr;
-
+    static struct sector_meta_data sector;
+    uint32_t sec_addr = *sec_addr_p;
+    //pre_sector
     sector.addr = *sec_addr_p;
-    /* search all sectors */
-    while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
-        if (read_sector_meta_data(sec_addr, &sector, false) != EF_NO_ERR) {
-            continue;
-        }
 
-        /* sector has ENV */
-        if (sector.status.store == SECTOR_STORE_USING || sector.status.store == SECTOR_STORE_FULL) {
-            //env->addr.start = FAILED_ADDR;
-            /* search all ENV */
-            while ((env->addr.start = get_next_env_addr(&sector, env)) != FAILED_ADDR) {
-                read_env(env);
-                if(env->crc_is_ok && env->status == ENV_WRITE)
-                    break;
+
+    //在传入的sector下寻找,找不到换到下一个sector?
+
+    
+    do{
+        //寻找下一个env地址,若为首地址,那么需要start=FAILADDR
+        //若返回的start为FAIL_ADDR.那么证明这次循环到头了
+
+        //ef_print("Sector %x,pre_env %x\n", sector.addr, env->addr.start);
+
+        if(sec_addr != FAILED_ADDR && (env->addr.start = get_next_env_addr(&sector, env)) != FAILED_ADDR)
+        {
+            read_env(env);
+            //ENV正常,当前即可
+            if(env->crc_is_ok && env->status == ENV_WRITE)
+                break;
+        }else{
+            //FAILED_ADDR
+            //需要切换到下一个扇区 或者是 到头了?那么判断一下 还有没有下一个扇区就可以了
+            while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+                if (read_sector_meta_data(sec_addr, &sector, false) != EF_NO_ERR) {
+                    continue;
+                }
+                if (sector.status.store == SECTOR_STORE_EMPTY)
+                    continue;
+                //SECTOR里面应该有ENV的情况,那么就可以去FIND一下了
+                env->addr.start = FAILED_ADDR;
+                break;
             }
         }
+    }while(sec_addr != FAILED_ADDR);
 
-        if(env->addr.start != FAILED_ADDR)
-            break;
-    }
 
-    //循环到底 or 找到了crcok&env_write状态的ENV
-
-    *sec_addr_p = sector.addr;
+    *sec_addr_p = sec_addr;
     
     ef_port_env_unlock();
     if(sec_addr == FAILED_ADDR)
