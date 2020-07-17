@@ -769,8 +769,8 @@ static bool find_env_no_cache(const char *key, env_meta_data_t env)
 
     return find_ok;
 }
-
-static bool find_env(const char *key, env_meta_data_t env)
+//static
+bool find_env(const char *key, env_meta_data_t env)
 {
     bool find_ok = false;
 
@@ -2289,6 +2289,50 @@ size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t
     return read_len;
 }
 
+/**
+ * 结合XIPFS的一些函数,暂时放在这里,以后以easyflash的拓展出现
+ * 逻辑需要大改,这里的作用就是寻找下一个可用的env
+ * @name getdents
+ */
+bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p)
+{
+    //static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre_env)
+    ef_port_env_lock();
+
+    struct sector_meta_data sector;
+    uint32_t sec_addr;
+
+    sector.addr = *sec_addr_p;
+    /* search all sectors */
+    while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+        if (read_sector_meta_data(sec_addr, &sector, false) != EF_NO_ERR) {
+            continue;
+        }
+
+        /* sector has ENV */
+        if (sector.status.store == SECTOR_STORE_USING || sector.status.store == SECTOR_STORE_FULL) {
+            //env->addr.start = FAILED_ADDR;
+            /* search all ENV */
+            while ((env->addr.start = get_next_env_addr(&sector, env)) != FAILED_ADDR) {
+                read_env(env);
+                if(env->crc_is_ok && env->status == ENV_WRITE)
+                    break;
+            }
+        }
+
+        if(env->addr.start != FAILED_ADDR)
+            break;
+    }
+
+    //循环到底 or 找到了crcok&env_write状态的ENV
+
+    *sec_addr_p = sector.addr;
+    
+    ef_port_env_unlock();
+    if(sec_addr == FAILED_ADDR)
+        return false;
+    return true;
+}
 
 
 

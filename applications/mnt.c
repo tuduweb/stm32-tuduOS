@@ -55,6 +55,17 @@ int mnt_init(void)
     {
         rt_kprintf("RAM file system initializate failed!\n");
     }
+
+    //测试一下..，这里好像并不返回
+    if (dfs_mount(RT_NULL, "/xip", "xip", 0, 0) == 0)
+    {
+        rt_kprintf("XIP file system initializated!\n");
+    }
+    else
+    {
+        rt_kprintf("XIP file system initializate failed!\n");
+    }
+
 		
 		
 		
