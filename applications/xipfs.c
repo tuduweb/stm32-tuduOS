@@ -21,12 +21,13 @@
 /* 跟easyflash原始文件的区别是，把一些全局变量封装到了这个结构体中,可以实现多xipfs分区! */
 struct ef_env_dev{
     uint32_t env_start_addr;
-    const ef_env *default_env_set;//key->value关系变量
-    size_t default_env_set_size;
+    const ef_env *default_env_set;//key->value关系变量 跟下面的size对应的
+    size_t default_env_set_size;//default env 组的大小
     _Bool init_ok;
     _Bool gc_request;
     _Bool in_recovery_check;
-    void *flash;    //此结构体等同于初始化时候的addr，用于ef_port的首地址
+    rt_device_t flash;    //此结构体等同于初始化时候的addr，用于ef_port的首地址
+    const struct fal_partition* part;//挂载在哪个分区,新增
     size_t sector_size;
     struct env_cache_node env_cache_table[16];
     struct sector_cache_node sector_cache_table[4];
@@ -67,14 +68,19 @@ rt_event_t ef_write_event;//写入操作事件
 struct root_dirent* get_env_by_dev(rt_device_t dev_id)
 {
     //void* deviceType = dev_id->parent.type;//type of kernel object
-/*
+
     for(int table_id = 0; table_id < 2; ++table_id)
     {
-        if(xip_mount_table[table_id]->env_dev.flash == dev_id->parent.type)
+        if(xip_mount_table[table_id] && xip_mount_table[table_id]->env_dev.flash == dev_id)
             return xip_mount_table[table_id];
     }
-*/
-    return 0;
+
+
+    //rt_kprintf("DEV %s\n",dev_id->parent.name);
+
+    //fal_partition_find()
+
+    return NULL;
 }
 
 /**
@@ -83,12 +89,15 @@ struct root_dirent* get_env_by_dev(rt_device_t dev_id)
  * fs   : path,ops,dev_id
  * data : 文件系统的私有数据 在dfs_mount调用中自行传入
 **/
+#include "fal.h"
 int mount_index = 0;
+
 int dfs_xipfs_mount(struct dfs_filesystem *fs,
                     unsigned long          rwflag,
                     const void            *data)
 {
-    if(fs->dev_id->type == RT_NULL)
+    extern const struct fal_partition *fal_partition_find(const char *name);
+    if(fs->dev_id->type != RT_Device_Class_Char)
     {
         rt_kprintf("The flash device type must be Char!\n");
         /* Not a character device */
@@ -98,18 +107,41 @@ int dfs_xipfs_mount(struct dfs_filesystem *fs,
     rt_kprintf("XipFS Mounted!\n");
 
     //已经挂在过了 在ef里面存在这些信息!?
-    if( get_env_by_dev(fs->dev_id) )
+    if( get_env_by_dev(fs->dev_id) != NULL)
         return RT_EOK;
+
     
     if(mount_index >= 2u)
         return -RT_ERROR;
+
+    /* 如果没有找到挂载表 那么在这里新建挂载表 */
+
+    //申请地址空间
+    root_dirent_t root = rt_calloc( 1, sizeof(root_dirent_t));
+    //没申请到
+    if(root == RT_NULL)
+        return RT_ERROR;
+
+    //初始化基本的参数(可能需要封装成函数)
+    root->env_dev.part = fal_partition_find(fs->dev_id->parent.name);//所在分区,信息
+    root->env_dev.env_start_addr = (fal_flash_device_find(root->env_dev.part->flash_name ))->addr;//初始化地址位置
+    root->env_dev.sector_size = (fal_flash_device_find(root->env_dev.part->flash_name ))->blk_size;//扇区大小
+    root->env_dev.flash = fs->dev_id;
+    root->env_dev.init_ok = false;
+    root->env_dev.in_recovery_check = false;
+    //root->env_dev.part->flash_name
+    root->sec_addr = 0xFFFFFFFF;
+
+    xip_mount_table[mount_index] = root;
+    
+    //挂载数量++
     mount_index++;
 
-    /* 如果没有挂载表 那么在这里新建挂载表 */
+    /*
     for(int table_id = 0; table_id < 2; ++table_id)
     {
-        ef_env_dev_t ef_env_dev = rt_malloc(sizeof(ef_env_dev_t));
 
+        
         //类型 void *flash;
         ////ef_env_dev->flash = fs->dev_id->parent.type;//得到flash?
         //sector_size保存在哪里?在挂载的物理硬件的信息里
@@ -117,7 +149,7 @@ int dfs_xipfs_mount(struct dfs_filesystem *fs,
 
         //ef_env_init_by_flash(ef_env_dev);
 
-    }
+    }*/
 
     //如果挂载表新建成功 那么需要执行清理等步骤?
     //清理:就是把app分区里面的碎片给整理了,
@@ -136,6 +168,8 @@ int dfs_xipfs_unmount(struct dfs_filesystem *fs)
     
     if(root_dirent)
         rt_free(root_dirent);
+    
+    mount_index--;//这里是有BUG的
 
     return RT_EOK;
 }
@@ -227,9 +261,9 @@ int dfs_xipfs_stat(struct dfs_filesystem *fs,
 {
     //需要判断path是目录,还是文件:目录和文件返回的数据是不一样的
     //返回的数据是在st这个实参中的
-
+    bool find_ok = false;
     struct root_dirent* root_dirent = get_env_by_dev(fs->dev_id);
-    struct env_meta_data env;
+    //struct env_meta_data env;
     //envmetadata
 
     //rt_kprintf("XIP STAT: dev:%d path:%s\n", fs->dev_id, path);
@@ -244,7 +278,7 @@ int dfs_xipfs_stat(struct dfs_filesystem *fs,
         st->st_mtime = 0;
 
         /* 如果是获取的文件夹信息"根目录",也就是顶级目录. */
-        if(*path == '/' && !*(path+1))
+        if((*path == '/' && !*(path+1)) || (find_ok = find_env( path+1, &root_dirent->env)) && root_dirent->env.value_len == 1 )
         {
             //文件夹
             st->st_mode = S_IFREG | S_IRUSR | S_IRGRP | S_IROTH |
@@ -258,9 +292,9 @@ int dfs_xipfs_stat(struct dfs_filesystem *fs,
         /* 暂时单目录 */
 
         //如果在env中找到了这个"path"也就是文件,那么返回文件. 如果没找到 那么返回错误"文件不存在"
-        if(find_env( path+1, &env))
+        if(find_ok)
         {
-            st->st_size = env.value_len;
+            st->st_size = root_dirent->env.value_len;
             return RT_EOK;
 
         }
@@ -291,38 +325,44 @@ int dfs_xipfs_open(struct dfs_fd *fd){
     root_dirent_t root_dirent;
     struct dfs_filesystem *fs = (struct dfs_filesystem *)fd->data; 
 
-    //暂时存在着溢出
-    root_dirent = rt_malloc(sizeof(root_dirent));
+    // root_dirent = get_env_by_dev(fs->dev_id);
 
-    rt_kprintf("XIPFS OPEN\n");
 
-    //取或操作
-    //如果打开的是根目录,那么->false
-    //如果打开的操作为目录,那么false
-    //上述 不能打开目录
+    // //暂时存在着溢出
+    // //root_dirent = rt_malloc(sizeof(root_dirent));
 
-    //伪造 测试
-    root_dirent->env.addr.start = -1;
-    root_dirent->sec_addr = -1;
-    fd->pos = 0;
-    fd->data = root_dirent;//(私有数据)
-    fd->size = 0;
-    return RT_EOK;
-		/*
-    if( !file->path[1] ||  !(file->flags & O_PATH))//获得一个能表示文件在文件系统中位置的文件描述符
+    // rt_kprintf("XIPFS OPEN\n");
+
+    // //取或操作
+    // //如果打开的是根目录,那么->false
+    // //如果打开的操作为目录,那么false
+    // //上述 不能打开目录
+
+    // //伪造 测试
+    // root_dirent->env.addr.start = -1;//初始化
+    // root_dirent->sec_addr = -1;//初始化
+    // fd->pos = 0;
+    // fd->data = root_dirent;//(私有数据)
+    // fd->size = 0;
+    // return RT_EOK;
+
+    //打开操作flag = 0
+    if( !fd->path[1] ||  fd->flags & O_DIRECTORY || fd->flags == 0x0)//获得一个能表示文件在文件系统中位置的文件描述符
     {
         root_dirent = get_env_by_dev(fs->dev_id);
 
         if(root_dirent)
         {
-            if(file->flags & 0x0000)
+            //通过flags区分文件和文件夹
+            //但是
+            if(!fd->path[1] || (find_env(fd->path + 1, &root_dirent->env) && (fd->flags == 0x0 || root_dirent->env.value_len == 1)))
             {
                 //find_env root_dirent->env_dev file->path+1 &root_dirent->dev
                 root_dirent->env.addr.start = -1;
                 root_dirent->sec_addr = -1;
-                file->pos = 0;
-                file->data = root_dirent;
-                file->size = 0;
+                fd->pos = 0;
+                fd->data = root_dirent;
+                fd->size = 0;
                 return RT_EOK;
             }
         }else{
@@ -330,7 +370,7 @@ int dfs_xipfs_open(struct dfs_fd *fd){
         }
     }
 
-    return -RT_ERROR;*/
+    return -RT_ERROR;
 }
 
 int dfs_xipfs_close(struct dfs_fd *file)
@@ -356,14 +396,14 @@ int dfs_xipfs_close(struct dfs_fd *file)
  * XIPFS IO操作
  * 根据CMD命令字进行系统级的一些操作[获取剩余存储大小 / ]
 **/
-int dfs_xipfs_ioctl(struct dfs_fd *file, int cmd, void *args)
+int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
 {
     ef_env_dev_t env_dev;
     //根据命令字cmd
     switch (cmd)
     {
     case 0x0000:
-        env_dev = (ef_env_dev_t)file->data;
+        env_dev = (ef_env_dev_t)fd->data;
         if(env_dev)
         {
             //获取remain_size 剩余大小
@@ -371,7 +411,7 @@ int dfs_xipfs_ioctl(struct dfs_fd *file, int cmd, void *args)
         break;
 
     case 0x0001:
-        env_dev = (ef_env_dev_t)file->data;
+        env_dev = (ef_env_dev_t)fd->data;
         if(env_dev)
         {
             //那么find_env
@@ -393,7 +433,7 @@ int dfs_xipfs_ioctl(struct dfs_fd *file, int cmd, void *args)
     return -ENOSYS;
 }
 
-int dfs_xipfs_read(struct dfs_fd *file, void *buf, size_t len)
+int dfs_xipfs_read(struct dfs_fd *fd, void *buf, size_t len)
 {
     size_t save_size;
     rt_size_t length;
@@ -408,7 +448,7 @@ int dfs_xipfs_read(struct dfs_fd *file, void *buf, size_t len)
     //READ功能主要是在读取一些字节信息的时候用到
 
     //pos指针移动length长度
-    file->pos += length;
+    fd->pos += length;
 
     return length;
 }
@@ -515,6 +555,7 @@ extern bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p);
  * that buffer.
  * @param count count为dirp中返回的数据量!也就是造了几个这玩意
  * @return 剩余长度 当为0说明没有剩余内容 On success, the number of bytes read is returned.
+ * @bug 在子文件夹中没有判断逻辑，导致ls出错
 **/
 int dfs_xipfs_getdents(struct dfs_fd *fd, struct dirent *dirp, uint32_t count)
 {
@@ -592,7 +633,7 @@ static const struct dfs_file_ops _dfs_xip_fops =
 
 static const struct dfs_filesystem_ops _dfs_xipfs =
 {
-    "xip",
+    "xipfs",
     DFS_FS_FLAG_DEFAULT,
     &_dfs_xip_fops,
 
