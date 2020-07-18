@@ -347,7 +347,9 @@ int dfs_xipfs_open(struct dfs_fd *fd){
     // return RT_EOK;
 
     //打开操作flag = 0
-    if( !fd->path[1] ||  fd->flags & O_DIRECTORY || fd->flags == 0x0)//获得一个能表示文件在文件系统中位置的文件描述符
+    //下面的条件还是有问题的..
+    //if( !fd->path[1] ||  fd->flags & O_DIRECTORY || fd->flags == 0x0)//获得一个能表示文件在文件系统中位置的文件描述符
+    if( !fd->path[1] ||  !(fd->flags & O_PATH))//获得一个能表示文件在文件系统中位置的文件描述符
     {
         root_dirent = get_env_by_dev(fs->dev_id);
 
@@ -370,7 +372,60 @@ int dfs_xipfs_open(struct dfs_fd *fd){
         }
     }
 
-    return -RT_ERROR;
+
+    if(fd->flags & O_DIRECTORY)
+    {
+        //文件夹形式
+        if(fd->flags & O_CREAT)
+        {
+            //新建文件夹.O_CREAT 若此文件夹不存在则创建它
+            //mkdir
+            return RT_EOK;
+        }
+        //打开文件夹的操作?
+        if((fd->path[0] == '/' && !fd->path[1])\
+            || (find_env(fd->path + 1, &root_dirent->env) && root_dirent->env.value_len == 1))
+            return RT_EOK;
+        else
+            return -ENOENT;//无
+    }else{
+        //文件形式
+        bool find_ok = find_env(fd->path + 1, &root_dirent->env);
+        if(find_ok && root_dirent->env.value_len == 1)
+        {
+            //这是一个文件夹
+            return -ENOENT;
+        }
+
+        if(find_ok == false)
+        {
+            //没有找到这样的文件
+
+            if(fd->flags & O_CREAT || fd->flags & O_WRONLY)
+            {
+                //新建模式,判断是否有内存之类的
+            }else{
+                return -ENOENT;
+            }
+        }
+
+        if(fd->flags & O_TRUNC)
+        {
+            //删除or重写
+        }
+    }
+
+    fd->data = root_dirent;
+    fd->size = 0;
+    if(fd->flags & O_APPEND)
+    {
+        //
+    }else{
+        //
+    }
+    
+    fd->pos = 0;
+    return RT_EOK;
 }
 
 int dfs_xipfs_close(struct dfs_fd *file)
@@ -433,16 +488,17 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
     return -ENOSYS;
 }
 
+extern size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t buf_len, size_t *saved_value_len);
 int dfs_xipfs_read(struct dfs_fd *fd, void *buf, size_t len)
 {
     size_t save_size;
     rt_size_t length;
-    int result;
+    //int result;
     //result = ef_get_env_blob()
 
     //从file->pos开始读 len位,如果len超过文件size,那么需要处理
 
-    //result = ef_get_env_stream()
+    length = ef_get_env_stream(fd->path + 1, fd->pos, buf, len, &save_size);
     //实现主要是 根据env_dev->flash 读取 n字节到buf中!?
 
     //READ功能主要是在读取一些字节信息的时候用到
@@ -455,11 +511,11 @@ int dfs_xipfs_read(struct dfs_fd *fd, void *buf, size_t len)
 
 
 /**
- * XIPFS 线程写入函数实体
+ * XIPFS 线程写入函数实体<删除操作>
  **/
-void xipfs_write_entry(struct dfs_fd* file)
+void xipfs_write_entry(struct dfs_fd* fd)
 {
-    if(ef_set_env_blob(file->path + 1, 0, file->size))
+    if(ef_set_env_blob(fd->path + 1, NULL, fd->size))
     {
         //出现错误 发送事件
         rt_event_send(ef_write_event, 1u << 1);
@@ -470,32 +526,33 @@ void xipfs_write_entry(struct dfs_fd* file)
     }
 }
 
-int dfs_xipfs_write(struct dfs_fd *file, const void *buf, size_t len)
+int dfs_xipfs_write(struct dfs_fd *fd, const void *buf, size_t len)
 {
     ef_env_dev_t env_dev;
-
     rt_thread_t tid;
+    int result = RT_EOK;
 
-    file->path;
+    //fd->path;
 
     //把类型强制转换
-    env_dev = (ef_env_dev_t)file->data;
+    env_dev = (ef_env_dev_t)fd->data;
 
     //取得锁的控制权
     if( !rt_mutex_take(ef_write_lock, 0) )
     {
         //无错误 那么取得了控制权
 
-        if(file->size > 0)
+        if(fd->size > 0)
         {
             if(!ef_write_event)
             {
                 ef_write_event = rt_event_create("ef_e", 0);
 
-                if(!ef_write_event || !(tid = rt_thread_create("write_t",xipfs_write_entry,file,0x1000u,5,12)))
+                if(!ef_write_event || !(tid = rt_thread_create("write_t",xipfs_write_entry,fd,0x1000u,5,12)))
                 {
                     //创建不了 那么是有错误的 内存不足
-                    return -RT_ENOMEM;
+                    result = -RT_ENOMEM;
+                    goto write_end;
                 }
                 //开辟一个内核线程用来写入
                 rt_thread_startup(tid);
@@ -506,7 +563,7 @@ int dfs_xipfs_write(struct dfs_fd *file, const void *buf, size_t len)
             
             rt_uint32_t recv;
             //等待接收
-            if(rt_event_recv(ef_write_event,1u << 1,RT_EVENT_FLAG_OR || RT_EVENT_FLAG_CLEAR,0,&recv))
+            if(rt_event_recv(ef_write_event,1u << 1,RT_EVENT_FLAG_OR | RT_EVENT_FLAG_CLEAR,0,&recv))
             {
                 //报错了
             }
@@ -523,25 +580,29 @@ int dfs_xipfs_write(struct dfs_fd *file, const void *buf, size_t len)
 
         }else{
             //size == 0 文件夹形式 那么写入环境变量!?
-            int errCode = ef_set_env_blob(file->path+1, buf, len);
+            int errCode = ef_set_env_blob(fd->path + 1, buf, len);
             if(!errCode)
             {
-                //无错误
-            }else if(errCode == 6)
+                //无错误,返回写入的字节数
+                result = len;
+                goto write_end;
+            }else if(errCode == EF_ENV_FULL)//EF_ENV_FULL
             {
-                //
+                result = -RT_EFULL;
+                goto write_end;
             }else{
-                //
+                result = -RT_ERROR;
+                goto write_end;
             }
         }
 
     }
 
+write_end:
     //释放控制权
     rt_mutex_release(ef_write_lock);
 
-
-    return RT_EOK;
+    return result;
 }
 
 extern bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p);

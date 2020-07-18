@@ -2270,6 +2270,7 @@ static size_t get_env_stream(const char *key, size_t offset, void *value_buf, si
 size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t buf_len, size_t *saved_value_len)
 {
     size_t read_len = 0;
+    struct env_meta_data env;
 
     if (!init_ok) {
         EF_INFO("ENV isn't initialize OK.\n");
@@ -2279,9 +2280,22 @@ size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t
     /* lock the ENV cache */
     ef_port_env_lock();
 
-    read_len = get_env(key, (void *)((uint32_t *)value_buf + offset), buf_len - offset, saved_value_len);
+    if (find_env(key, &env)) {
+        if (saved_value_len) {
+            *saved_value_len = env.value_len;
+        }
+        if (buf_len > env.value_len) {
+            read_len = env.value_len - offset;
+        } else {
+            read_len = buf_len;
+        }
+        //offset推动
+        ef_port_read(env.addr.value + offset, (uint32_t *) value_buf, read_len);
+    }
 
-    saved_value_len -= offset;
+    //read_len = get_env(key, (void *)((uint32_t *)value_buf + offset), buf_len - offset, saved_value_len);
+
+    //*saved_value_len -= offset;
 
     /* unlock the ENV cache */
     ef_port_env_unlock();

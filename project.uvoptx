@@ -157,9 +157,9 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>350</LineNumber>
+          <LineNumber>582</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134259474</Address>
+          <Address>134260170</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -168,7 +168,7 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>applications\xipfs.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\rt_thread\applications/xipfs.c\350</Expression>
+          <Expression>\\rt_thread\applications/xipfs.c\582</Expression>
         </Bp>
       </Breakpoint>
       <Tracepoint>
