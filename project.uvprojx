@@ -487,6 +487,11 @@
               <FileType>1</FileType>
               <FilePath>applications\ef_fal_port.c</FilePath>
             </File>
+            <File>
+              <FileName>app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\app.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
@@ -710,6 +715,11 @@
               <FileName>context_rvds.S</FileName>
               <FileType>2</FileType>
               <FilePath>rt-thread\libcpu\arm\cortex-m4\context_rvds.S</FilePath>
+            </File>
+            <File>
+              <FileName>syscall.s</FileName>
+              <FileType>2</FileType>
+              <FilePath>.\rt-thread\libcpu\arm\cortex-m4\syscall.s</FilePath>
             </File>
           </Files>
         </Group>

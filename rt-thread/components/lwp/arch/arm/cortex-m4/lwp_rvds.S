@@ -98,7 +98,7 @@ SVC_Handler    PROC
     MSR     CONTROL, R3
 
     POP     {LR}                ; 0xFFFFFFED
-    ORR     LR, LR, #0x10
+    ORR     LR, LR, #0x10       ;Thumb模式?
     BX      LR
 
     ENDP
@@ -119,10 +119,10 @@ svc_exit     PROC
     ldr     r1, [r3, #24]           ; load pc
     add     r3, #32                 ; exception_stack_frame size
     MSR     PSP, R3                 ; restore app stack pointer
-    ; restore to PSP & thread-unprivilege mode.
-    MRS     R2, CONTROL
-    ORR     R2, R2, #0x03
-    MSR     CONTROL, R2
+    ; restore to PSP & thread-unprivilege mode.;进入线程非特权模式,在核心中测试时，切勿进入，否则会发生无法切换线程的错误。
+    ;MRS     R2, CONTROL
+    ;ORR     R2, R2, #0x03
+    ;MSR     CONTROL, R2
 
     ; return to lwp.
     ORR     R1, R1, #0x01           ; only Thumb-mode.

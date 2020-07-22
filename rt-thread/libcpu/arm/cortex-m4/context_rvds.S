@@ -69,11 +69,11 @@ rt_hw_context_switch    PROC
     MOV     r3, #1
     STR     r3, [r2]
 
-    LDR     r2, =rt_interrupt_from_thread   ; set rt_interrupt_from_thread
+    LDR     r2, =rt_interrupt_from_thread   ; set rt_interrupt_from_thread;from_thread->sp
     STR     r0, [r2]
 
 _reswitch
-    LDR     r2, =rt_interrupt_to_thread     ; set rt_interrupt_to_thread
+    LDR     r2, =rt_interrupt_to_thread     ; set rt_interrupt_to_thread;to_thread->sp
     STR     r1, [r2]
 
     LDR     r0, =NVIC_INT_CTRL              ; trigger the PendSV exception (causes context switch)
@@ -149,12 +149,15 @@ switch_to_thread
     CMP     r3,  #0                 ; if(flag_r3 != 0)
     BICNE   lr, lr, #0x10           ; lr &= ~(1 << 4), set FPCA.
     ENDIF
+    ;mpu
 
 pendsv_exit
     ; restore interrupt
     MSR     PRIMASK, r2
-
-    ORR     lr, lr, #0x04
+    ;MSR     R1, CONTROL
+    ;TST     R1,#1
+    ;BNE    ret_to_user
+    ORR     lr, lr, #0x04;TO PSP MODE
     BX      lr
     ENDP
 
@@ -222,7 +225,7 @@ rt_hw_interrupt_thread_switch PROC
 HardFault_Handler    PROC
 
     ; get current context
-    TST     lr, #0x04               ; if(!EXC_RETURN[2])
+    TST     lr, #0x04               ; if(!EXC_RETURN[2]);根据这一bit的数据判断进入中断前的模式
     ITE     EQ
     MRSEQ   r0, msp                 ; [2]=0 ==> Z=1, get fault context from handler.
     MRSNE   r0, psp                 ; [2]=1 ==> Z=0, get fault context from thread.

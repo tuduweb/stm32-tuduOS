@@ -2359,6 +2359,24 @@ bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p)
     return true;
 }
 
+bool env_remainSize(sector_meta_data_t sector, void *arg1,void* arg2)
+{
+    size_t remain_size = *(size_t *)arg1;
+    if(sector->check_ok)
+    {
+        remain_size += sector->remain;
+    }
+
+    return false;
+}
+
+void ef_get_remainSive(ef_env_dev_t dev,size_t *remain_size)
+{
+    struct sector_meta_data sector;
+
+    sector_iterator(&sector, SECTOR_STORE_EMPTY, remain_size, NULL, env_remainSize, true);
+    sector_iterator(&sector, SECTOR_STORE_USING, remain_size, NULL, env_remainSize, true);
+}
 
 
 #endif /* defined(EF_USING_ENV) && !defined(EF_ENV_USING_LEGACY_MODE) */

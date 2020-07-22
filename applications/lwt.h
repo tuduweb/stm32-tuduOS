@@ -34,7 +34,7 @@ struct rt_lwt
     uint8_t *text_entry;
     uint32_t text_size;
     //静态数据段
-    uint8_t *data;
+    uint8_t *data_entry;
     uint32_t data_size;
 
     uint32_t *kernel_sp;                                /**< kernel stack point */

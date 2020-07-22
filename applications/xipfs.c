@@ -6,8 +6,7 @@
 #include <xipfs.h>
 #include <rtthread.h>
 
-#include <dfs_fs.h>
-#include <dfs_file.h>
+
 
 #include <easyflash.h>
 
@@ -18,21 +17,7 @@
 //日志单元配置项结束<----
 
 
-/* 跟easyflash原始文件的区别是，把一些全局变量封装到了这个结构体中,可以实现多xipfs分区! */
-struct ef_env_dev{
-    uint32_t env_start_addr;
-    const ef_env *default_env_set;//key->value关系变量 跟下面的size对应的
-    size_t default_env_set_size;//default env 组的大小
-    _Bool init_ok;
-    _Bool gc_request;
-    _Bool in_recovery_check;
-    rt_device_t flash;    //此结构体等同于初始化时候的addr，用于ef_port的首地址
-    const struct fal_partition* part;//挂载在哪个分区,新增
-    size_t sector_size;
-    struct env_cache_node env_cache_table[16];
-    struct sector_cache_node sector_cache_table[4];
-};
-typedef struct ef_env_dev *ef_env_dev_t;
+
 
 /*
 enum env_status {
@@ -447,6 +432,7 @@ int dfs_xipfs_close(struct dfs_fd *file)
     return RT_EOK;
 }
 
+extern void ef_get_remainSive(ef_env_dev_t dev,size_t *remain_size);
 /**
  * XIPFS IO操作
  * 根据CMD命令字进行系统级的一些操作[获取剩余存储大小 / ]
@@ -461,7 +447,10 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
         env_dev = (ef_env_dev_t)fd->data;
         if(env_dev)
         {
+            size_t remain_size = 0;
             //获取remain_size 剩余大小
+            ef_get_remainSive(env_dev, &remain_size);
+            
         }
         break;
 

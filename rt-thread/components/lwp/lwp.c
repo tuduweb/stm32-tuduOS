@@ -24,23 +24,24 @@
 #include <rtdbg.h>
 
 extern void lwp_user_entry(void *args, const void *text, void *data);
-
+uint32_t* kernel_sp = NULL;
 /**
  * RT-Thread light-weight process
  */
 void lwp_set_kernel_sp(uint32_t *sp)
 {
-    struct rt_lwp *user_data;
-    user_data = (struct rt_lwp *)rt_thread_self()->lwp;
-    user_data->kernel_sp = sp;
+    //struct rt_lwp *user_data;
+    //user_data = (struct rt_lwp *)rt_thread_self()->lwp;
+    //user_data->kernel_sp = sp;
+    kernel_sp = sp;
 }
 
 uint32_t *lwp_get_kernel_sp(void)
 {
-    struct rt_lwp *user_data;
-    user_data = (struct rt_lwp *)rt_thread_self()->lwp;
-
-    return user_data->kernel_sp;
+    //struct rt_lwp *user_data;
+    //user_data = (struct rt_lwp *)rt_thread_self()->lwp;
+    return kernel_sp;
+    //return user_data->kernel_sp;
 }
 
 static int lwp_argscopy(struct rt_lwp *lwp, int argc, char **argv)

@@ -10,6 +10,7 @@ comm.c
 mpu.c
 xipfs.c
 ef_fal_port.c
+app.c
 """)
 
 group = DefineGroup('Applications', src, depend = [''], CPPPATH = CPPPATH)
