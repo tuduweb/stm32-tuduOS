@@ -26,6 +26,7 @@ static const rt_uint8_t _romfs_root_hello_txt[] = {
 
 static const struct romfs_dirent _romfs_root[] = {
     {ROMFS_DIRENT_DIR, "bin", RT_NULL, 0},
+    {ROMFS_DIRENT_DIR, "xip", RT_NULL, 0},
     {ROMFS_DIRENT_DIR, "dev0", RT_NULL, 0},
     {ROMFS_DIRENT_DIR, "dev1", RT_NULL, 0},
     {ROMFS_DIRENT_DIR, "directory", (rt_uint8_t *)_romfs_root_directory, sizeof(_romfs_root_directory)/sizeof(_romfs_root_directory[0])},

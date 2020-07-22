@@ -202,4 +202,23 @@ void ef_print(const char *format, ...);
 }
 #endif
 
+#include <dfs_fs.h>
+#include <dfs_file.h>
+
+/* 跟easyflash原始文件的区别是，把一些全局变量封装到了这个结构体中,可以实现多xipfs分区! */
+struct ef_env_dev{
+    uint32_t env_start_addr;
+    const ef_env *default_env_set;//key->value关系变量 跟下面的size对应的
+    size_t default_env_set_size;//default env 组的大小
+    _Bool init_ok;
+    _Bool gc_request;
+    _Bool in_recovery_check;
+    rt_device_t flash;    //此结构体等同于初始化时候的addr，用于ef_port的首地址
+    const struct fal_partition* part;//挂载在哪个分区,新增
+    size_t sector_size;
+    struct env_cache_node env_cache_table[16];
+    struct sector_cache_node sector_cache_table[4];
+};
+typedef struct ef_env_dev *ef_env_dev_t;
+
 #endif /* EASYFLASH_H_ */

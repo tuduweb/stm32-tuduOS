@@ -8,6 +8,7 @@
 #include <lwt.h>
 #include <rtthread.h>
 #include <rthw.h>
+#include <dfs_posix.h>
 
 #define DBG_TAG    "LWP"
 #define DBG_LVL    DBG_WARNING
@@ -22,12 +23,28 @@
 
 struct lwt_pidmap lwt_pid;
 
+extern void lwp_user_entry(void *args, const void *text, void *data);
+void lwt_set_kernel_sp(uint32_t *sp)
+{
+    rt_thread_t thread = rt_thread_self();
+    struct rt_lwt *user_data;
+    user_data = (struct rt_lwt *)rt_thread_self()->lwp;
+    user_data->kernel_sp = sp;
+    //kernel_sp = sp;
+}
 
+uint32_t *lwt_get_kernel_sp(void)
+{
+    struct rt_lwt *user_data;
+    user_data = (struct rt_lwt *)rt_thread_self()->lwp;
+    //return kernel_sp;
+    return user_data->kernel_sp;
+}
 
 /**
  * 参数复制 把参数拷贝到lwt的结构体中
 **/
-static int lwt_argscopy(struct rt_lwt *lwp, int argc, char **argv)
+static int lwt_argscopy(struct rt_lwt *lwt, int argc, char **argv)
 {
     int size = sizeof(int)*3; /* store argc, argv, NULL */
     int *args;
@@ -59,7 +76,7 @@ static int lwt_argscopy(struct rt_lwt *lwp, int argc, char **argv)
         str += len;
     }
     new_argv[i] = 0;
-    lwp->args = args;
+    lwt->args = args;
 
     return 0;
 }
@@ -78,7 +95,7 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
     /* check lwp control block */
     RT_ASSERT(lwt != RT_NULL);
 
-    /* 根据加载地址判断地址是否为fix */
+    /* 根据加载地址判断地址是否为Fix mode */
     if (load_addr != RT_NULL)
     {
         lwt->lwt_type = LWP_TYPE_FIX_ADDR;
@@ -91,23 +108,46 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
     }
 
 
-    char* itemname;
+    const char* itemname;
     /* 查找文件名(也就是去除掉目录) -> 若不存在待查字符,则返回空指针*/
     itemname = strrchr( filename, '/');
-    if(itemname != RT_NULL)
+    if(itemname == RT_NULL)
         itemname = filename;//不存在'/',那么直接拿来用
     else
         itemname++;//去除掉'/'只要后面的 比如 bin/app.bin -> app.bin
     //这个参数干嘛用的呢..
-    rt_strncpy(lwt->cmd,itemname, 8);
+    rt_strncpy(lwt->cmd, itemname, 8);
     
     /* 这里需要更换成xipfs 现在暂时是fatfs */
     fd = open(filename, 0, O_RDONLY);
+
     if (fd < 0)
     {
         dbg_log(DBG_ERROR, "open file:%s failed!\n", filename);
         result = -RT_ENOSYS;
         goto _exit;
+    }else{
+        //fd >= 0
+
+        //ioctl
+        if(ioctl(fd, 0x0001, &lwt->text_entry) != RT_EOK)
+        {
+            LOG_E("Can't find that [%s] text_entry!", filename);
+            result = -RT_EEMPTY;
+            goto _exit;
+        }
+        //在app里面第9位
+        lwt->data_size = 0x400;//(uint8_t)*(lwt->text_entry + 9);//addr
+        //申请数据空间
+        //lwt->data_entry = rt_lwt_alloc_user(lwt,lwt->data_size);
+        lwt->data_entry = rt_malloc(lwt->data_size);
+        if (lwt->data_entry == RT_NULL)
+        {
+            dbg_log(DBG_ERROR, "alloc data memory faild!\n");
+            result = -RT_ENOMEM;
+            goto _exit;
+        }
+
     }
 
     //if()
@@ -133,7 +173,15 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
 #endif
     
 _exit:
-    return 0;
+    if(fd >= 0)
+        close(fd);
+    
+    if(result != RT_EOK)
+    {
+        //
+    }
+    
+    return result;
 }
 
 struct rt_lwt *rt_lwt_self(void)
@@ -144,7 +192,7 @@ struct rt_lwt *rt_lwt_self(void)
     return tid->lwp;
 }
 
-struct rt_lwp *rt_lwp_new(void)
+struct rt_lwt *rt_lwp_new(void)
 {
     struct rt_lwt *lwt = RT_NULL;
     //关闭中断 主要是MPU保护这一块
@@ -255,22 +303,42 @@ pid_t lwt_get_pid(void)
     return 0;
 }
 
+void lwt_cleanup(rt_thread_t tid)
+{
+    //
+}
 
+extern void lwp_user_entry(void *args, const void *text, void *data);
 
+void lwt_thread_entry(void* parameter)
+{
+    rt_thread_t thread;
+    struct rt_lwt* lwt;
+
+    thread = rt_thread_self();
+    lwt = thread->lwp;
+    thread->cleanup = lwt_cleanup;
+    //thread->stack_addr = 0;
+
+    lwp_user_entry(lwt->args, lwt->text_entry, lwt->data_entry);
+    
+}
+
+#include "dfs_file.h"
 /**
  * 执行操作
  * envp里存放的是系统的环境变量
 **/
-void lwt_execve(char *filename, int argc, char **argv, char **envp)
+int lwt_execve(char *filename, int argc, char **argv, char **envp)
 {
     struct rt_lwt *lwt;
-    int result;
 
     if (filename == RT_NULL)
         return -RT_ERROR;
 
     //把这里换成新建的函数体 类似于c++中的新建一个实例
     lwt = (struct rt_lwt *)rt_malloc(sizeof(struct rt_lwt));
+    
     if (lwt == RT_NULL)
     {
         dbg_log(DBG_ERROR, "lwt struct out of memory!\n");
@@ -281,10 +349,78 @@ void lwt_execve(char *filename, int argc, char **argv, char **envp)
     //执行申请内存操作
     rt_memset(lwt, 0, sizeof(*lwt));
 
-    if (lwp_argscopy(lwt, argc, argv) != 0)
+    //拷贝入口参数到 lwt->args
+    if (lwt_argscopy(lwt, argc, argv) != 0)
     {
         rt_free(lwt);
         return -ENOMEM;
     }
 
+    //为lwt构建空间
+    if(lwt_load(filename, lwt, 0, 0) != RT_EOK)
+    {
+        return -RT_ERROR;
+    }
+
+    int fd = libc_stdio_get_console();
+    struct dfs_fd *d = fd_get(fd);
+    fd_put(d);
+
+    char* name = strrchr(filename, '/');
+    rt_thread_t thread = rt_thread_create( name ? name + 1: filename, lwt_thread_entry, NULL, 0x400, 29, 200);
+    if(thread == RT_NULL)
+    {
+        //
+    }
+
+    int IRID = rt_hw_interrupt_disable();
+    
+    /* 构造相互关系 */
+
+    struct rt_lwt *current_lwt;
+    current_lwt = rt_thread_self()->lwp;
+
+    if(current_lwt)
+    {
+        lwt->sibling = current_lwt->first_child;
+        current_lwt->first_child = lwt;
+        lwt->parent = current_lwt;
+    }
+
+    thread->lwp = lwt;
+    //lwt->t_grp.next->prev = &thread->
+
+    rt_hw_interrupt_enable(IRID);
+
+    //启动进程
+    rt_thread_startup(thread);
+
+_exit:
+
+    return lwt_get_pid();//lwt_to_pid(lwt)
+
+}
+
+
+/* 部分测试函数 */
+#include "lwp.h"
+
+rt_thread_t sys_thread_create(const char *name,
+                             void (*entry)(void *parameter),
+                             void       *parameter,
+                             rt_uint32_t stack_size,
+                             rt_uint8_t  priority,
+                             rt_uint32_t tick)
+{
+    struct rt_thread *thread = NULL;
+    struct rt_lwp *lwp = NULL;
+
+    thread = rt_thread_create(name, entry, parameter, stack_size, priority, tick);
+
+    if(thread != NULL)
+    {
+        //
+    }
+
+    return thread;
 }

@@ -107,6 +107,8 @@ static void initstring(uint8_t argc, char **argv)
     {
         string[i] = (char)i;
     }
+
+    //syscall(1,1);
 }
 MSH_CMD_EXPORT(initstring, Init String.);
 

@@ -330,7 +330,7 @@ static int _msh_exec_cmd(char *cmd, rt_size_t length, int *retp)
     *retp = cmd_func(argc, argv);
     return 0;
 }
-
+#include "lwt.h"
 #if defined(RT_USING_LWP) && defined(RT_USING_DFS)
 static int _msh_exec_lwp(char *cmd, rt_size_t length)
 {
@@ -363,8 +363,8 @@ static int _msh_exec_lwp(char *cmd, rt_size_t length)
 
     /* found program */
     close(fd);
-    exec(pg_name, argc, argv);
-
+    //exec(pg_name, argc, argv);
+    lwt_execve(pg_name, argc, argv, NULL);
     return 0;
 }
 #endif

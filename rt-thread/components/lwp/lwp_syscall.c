@@ -48,7 +48,7 @@ void sys_exit(int value)
     /* TODO: handle the return_value */
     dbg_log(DBG_LOG, "enter sys_exit\n");
     tid = rt_thread_self();
-    __exit_files(tid);
+    //__exit_files(tid);//暂时没有用到lwp
     rt_thread_delete(tid);
 
     rt_schedule();

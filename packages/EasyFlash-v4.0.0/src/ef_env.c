@@ -769,8 +769,8 @@ static bool find_env_no_cache(const char *key, env_meta_data_t env)
 
     return find_ok;
 }
-
-static bool find_env(const char *key, env_meta_data_t env)
+//static
+bool find_env(const char *key, env_meta_data_t env)
 {
     bool find_ok = false;
 
@@ -2270,6 +2270,7 @@ static size_t get_env_stream(const char *key, size_t offset, void *value_buf, si
 size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t buf_len, size_t *saved_value_len)
 {
     size_t read_len = 0;
+    struct env_meta_data env;
 
     if (!init_ok) {
         EF_INFO("ENV isn't initialize OK.\n");
@@ -2279,9 +2280,22 @@ size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t
     /* lock the ENV cache */
     ef_port_env_lock();
 
-    read_len = get_env(key, (void *)((uint32_t *)value_buf + offset), buf_len - offset, saved_value_len);
+    if (find_env(key, &env)) {
+        if (saved_value_len) {
+            *saved_value_len = env.value_len;
+        }
+        if (buf_len > env.value_len) {
+            read_len = env.value_len - offset;
+        } else {
+            read_len = buf_len;
+        }
+        //offset推动
+        ef_port_read(env.addr.value + offset, (uint32_t *) value_buf, read_len);
+    }
 
-    saved_value_len -= offset;
+    //read_len = get_env(key, (void *)((uint32_t *)value_buf + offset), buf_len - offset, saved_value_len);
+
+    //*saved_value_len -= offset;
 
     /* unlock the ENV cache */
     ef_port_env_unlock();
@@ -2289,7 +2303,80 @@ size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t
     return read_len;
 }
 
+/**
+ * 结合XIPFS的一些函数,暂时放在这里,以后以easyflash的拓展出现
+ * 逻辑需要大改,这里的作用就是寻找下一个可用的env
+ * @name getdents
+ */
+bool env_get_fs_getdents(env_meta_data_t env, uint32_t* sec_addr_p)
+{
+    //static uint32_t get_next_env_addr(sector_meta_data_t sector, env_meta_data_t pre_env)
+    ef_port_env_lock();
 
+    static struct sector_meta_data sector;
+    uint32_t sec_addr = *sec_addr_p;
+    //pre_sector
+    sector.addr = *sec_addr_p;
+
+
+    //在传入的sector下寻找,找不到换到下一个sector?
+
+    
+    do{
+        //寻找下一个env地址,若为首地址,那么需要start=FAILADDR
+        //若返回的start为FAIL_ADDR.那么证明这次循环到头了
+
+        //ef_print("Sector %x,pre_env %x\n", sector.addr, env->addr.start);
+
+        if(sec_addr != FAILED_ADDR && (env->addr.start = get_next_env_addr(&sector, env)) != FAILED_ADDR)
+        {
+            read_env(env);
+            //ENV正常,当前即可
+            if(env->crc_is_ok && env->status == ENV_WRITE)
+                break;
+        }else{
+            //FAILED_ADDR
+            //需要切换到下一个扇区 或者是 到头了?那么判断一下 还有没有下一个扇区就可以了
+            while ((sec_addr = get_next_sector_addr(&sector)) != FAILED_ADDR) {
+                if (read_sector_meta_data(sec_addr, &sector, false) != EF_NO_ERR) {
+                    continue;
+                }
+                if (sector.status.store == SECTOR_STORE_EMPTY)
+                    continue;
+                //SECTOR里面应该有ENV的情况,那么就可以去FIND一下了
+                env->addr.start = FAILED_ADDR;
+                break;
+            }
+        }
+    }while(sec_addr != FAILED_ADDR);
+
+
+    *sec_addr_p = sec_addr;
+    
+    ef_port_env_unlock();
+    if(sec_addr == FAILED_ADDR)
+        return false;
+    return true;
+}
+
+bool env_remainSize(sector_meta_data_t sector, void *arg1,void* arg2)
+{
+    size_t remain_size = *(size_t *)arg1;
+    if(sector->check_ok)
+    {
+        remain_size += sector->remain;
+    }
+
+    return false;
+}
+
+void ef_get_remainSive(ef_env_dev_t dev,size_t *remain_size)
+{
+    struct sector_meta_data sector;
+
+    sector_iterator(&sector, SECTOR_STORE_EMPTY, remain_size, NULL, env_remainSize, true);
+    sector_iterator(&sector, SECTOR_STORE_USING, remain_size, NULL, env_remainSize, true);
+}
 
 
 #endif /* defined(EF_USING_ENV) && !defined(EF_ENV_USING_LEGACY_MODE) */

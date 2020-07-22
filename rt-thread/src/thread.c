@@ -113,7 +113,7 @@ void rt_thread_exit(void)
     /* enable interrupt */
     rt_hw_interrupt_enable(level);
 }
-
+#include "lwp.h"
 static rt_err_t _rt_thread_init(struct rt_thread *thread,
                                 const char       *name,
                                 void (*entry)(void *parameter),
@@ -200,10 +200,14 @@ static rt_err_t _rt_thread_init(struct rt_thread *thread,
 #endif
 
 #ifdef RT_USING_LWP
-    thread->lwp = RT_NULL;
+    //struct rt_lwp* lwp = rt_malloc(sizeof(struct rt_lwp));
+    //memset(lwp , 0, sizeof(struct rt_lwp));
+    thread->lwp = NULL;
 #endif
 
     RT_OBJECT_HOOK_CALL(rt_thread_inited_hook, (thread));
+
+    
 
     return RT_EOK;
 }
