@@ -84,7 +84,7 @@ struct lwt_pidmap
  * 轻量级进程 执行文件
  * 在父进程中fork一个子进程
 **/
-void lwt_execve(char *filename, int argc, char **argv, char **envp);
+int lwt_execve(char *filename, int argc, char **argv, char **envp);
 
 
 

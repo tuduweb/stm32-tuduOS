@@ -33,7 +33,7 @@ void lwp_set_kernel_sp(uint32_t *sp)
     //struct rt_lwp *user_data;
     //user_data = (struct rt_lwp *)rt_thread_self()->lwp;
     //user_data->kernel_sp = sp;
-    kernel_sp = sp;
+    //kernel_sp = sp;
 }
 
 uint32_t *lwp_get_kernel_sp(void)

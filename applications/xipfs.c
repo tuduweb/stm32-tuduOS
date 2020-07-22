@@ -432,10 +432,25 @@ int dfs_xipfs_close(struct dfs_fd *file)
     return RT_EOK;
 }
 
+extern int syscall(int number, ...);
+void lwp_test_main(uint8_t argc, char **argv)
+{
+    rt_kprintf("syscall APP test begin\n");
+    char txt[] = "syscall\n";
+    //syscall(0xff, txt, sizeof(txt));//无法正常返回
+    //syscall(1,1);//似乎是正常使用
+    rt_kprintf("syscall APP delay 1000ms\n");
+    rt_thread_mdelay(1000);
+    rt_kprintf("syscall APP test end\n");
+
+
+}
+
 extern void ef_get_remainSive(ef_env_dev_t dev,size_t *remain_size);
 /**
  * XIPFS IO操作
  * 根据CMD命令字进行系统级的一些操作[获取剩余存储大小 / ]
+ * 返回的代码需要规范化
 **/
 int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
 {
@@ -447,10 +462,10 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
         env_dev = (ef_env_dev_t)fd->data;
         if(env_dev)
         {
-            size_t remain_size = 0;
+            //size_t remain_size = 0;
             //获取remain_size 剩余大小
-            ef_get_remainSive(env_dev, &remain_size);
-            
+            ef_get_remainSive(env_dev, (size_t *)args);
+            return RT_EOK;
         }
         break;
 
@@ -460,21 +475,31 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
         {
             //那么find_env
             //find_env(env_dev, file->path+1,)
-            
+            struct env_meta_data env;
+            if(find_env(fd->path + 1, &env) == false)
+            {
+                return -ENOENT;
+            }
             //查找start_addr
             //把start_addr 放入 arg 返回
+            //*(uint32_t *)args = env.addr.value;
+            uint32_t* entry = args; 
+            *entry = (uint32_t)lwp_test_main;
+            
+            return RT_EOK;
+            
         }
         break;
 
     
     default:
         //命令字错误
+        return -ENOSYS;
         break;
     }
 
-    LOG_E("can't find data!");    
-
-    return -ENOSYS;
+    LOG_E("can't find data!");
+    return -ENOENT;
 }
 
 extern size_t ef_get_env_stream(const char *key, size_t offset, void *value_buf, size_t buf_len, size_t *saved_value_len);

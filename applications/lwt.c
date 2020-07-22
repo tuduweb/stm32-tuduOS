@@ -8,6 +8,7 @@
 #include <lwt.h>
 #include <rtthread.h>
 #include <rthw.h>
+#include <dfs_posix.h>
 
 #define DBG_TAG    "LWP"
 #define DBG_LVL    DBG_WARNING
@@ -22,7 +23,23 @@
 
 struct lwt_pidmap lwt_pid;
 
+extern void lwp_user_entry(void *args, const void *text, void *data);
+void lwt_set_kernel_sp(uint32_t *sp)
+{
+    rt_thread_t thread = rt_thread_self();
+    struct rt_lwt *user_data;
+    user_data = (struct rt_lwt *)rt_thread_self()->lwp;
+    user_data->kernel_sp = sp;
+    //kernel_sp = sp;
+}
 
+uint32_t *lwt_get_kernel_sp(void)
+{
+    struct rt_lwt *user_data;
+    user_data = (struct rt_lwt *)rt_thread_self()->lwp;
+    //return kernel_sp;
+    return user_data->kernel_sp;
+}
 
 /**
  * 参数复制 把参数拷贝到lwt的结构体中
@@ -91,10 +108,10 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
     }
 
 
-    char* itemname;
+    const char* itemname;
     /* 查找文件名(也就是去除掉目录) -> 若不存在待查字符,则返回空指针*/
     itemname = strrchr( filename, '/');
-    if(itemname != RT_NULL)
+    if(itemname == RT_NULL)
         itemname = filename;//不存在'/',那么直接拿来用
     else
         itemname++;//去除掉'/'只要后面的 比如 bin/app.bin -> app.bin
@@ -113,10 +130,23 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
         //fd >= 0
 
         //ioctl
+        if(ioctl(fd, 0x0001, &lwt->text_entry) != RT_EOK)
+        {
+            LOG_E("Can't find that [%s] text_entry!", filename);
+            result = -RT_EEMPTY;
+            goto _exit;
+        }
         //在app里面第9位
-        lwt->data_size = (uint8_t)*(lwt->text_entry + 9);//addr
+        lwt->data_size = 0x400;//(uint8_t)*(lwt->text_entry + 9);//addr
         //申请数据空间
         //lwt->data_entry = rt_lwt_alloc_user(lwt,lwt->data_size);
+        lwt->data_entry = rt_malloc(lwt->data_size);
+        if (lwt->data_entry == RT_NULL)
+        {
+            dbg_log(DBG_ERROR, "alloc data memory faild!\n");
+            result = -RT_ENOMEM;
+            goto _exit;
+        }
 
     }
 
@@ -162,7 +192,7 @@ struct rt_lwt *rt_lwt_self(void)
     return tid->lwp;
 }
 
-struct rt_lwp *rt_lwp_new(void)
+struct rt_lwt *rt_lwp_new(void)
 {
     struct rt_lwt *lwt = RT_NULL;
     //关闭中断 主要是MPU保护这一块
@@ -288,7 +318,7 @@ void lwt_thread_entry(void* parameter)
     thread = rt_thread_self();
     lwt = thread->lwp;
     thread->cleanup = lwt_cleanup;
-    thread->stack_addr = 0;
+    //thread->stack_addr = 0;
 
     lwp_user_entry(lwt->args, lwt->text_entry, lwt->data_entry);
     
@@ -299,7 +329,7 @@ void lwt_thread_entry(void* parameter)
  * 执行操作
  * envp里存放的是系统的环境变量
 **/
-void lwt_execve(char *filename, int argc, char **argv, char **envp)
+int lwt_execve(char *filename, int argc, char **argv, char **envp)
 {
     struct rt_lwt *lwt;
 
@@ -334,10 +364,10 @@ void lwt_execve(char *filename, int argc, char **argv, char **envp)
 
     int fd = libc_stdio_get_console();
     struct dfs_fd *d = fd_get(fd);
-    fd_put(fd);
+    fd_put(d);
 
     char* name = strrchr(filename, '/');
-    rt_thread_t thread = rt_thread_create( name ? name + 1: filename, lwt_thread_entry, RT_NULL, 0x400, 29, 200);
+    rt_thread_t thread = rt_thread_create( name ? name + 1: filename, lwt_thread_entry, NULL, 0x400, 29, 200);
     if(thread == RT_NULL)
     {
         //

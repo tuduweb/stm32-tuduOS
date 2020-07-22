@@ -17,11 +17,11 @@
 ; * void* lwp_get_sys_api(rt_uint32_t number);
 ; */
     IMPORT lwp_get_sys_api
-    IMPORT lwp_get_kernel_sp
-    IMPORT lwp_set_kernel_sp
+    IMPORT lwt_get_kernel_sp
+    IMPORT lwt_set_kernel_sp
 
 ;/*
-; * void lwp_user_entry(args, text, data);
+; * void lwp_user_entry(args, text, data);// args,text,data,user_stack
 ; */
 lwp_user_entry    PROC
     EXPORT  lwp_user_entry
@@ -29,12 +29,12 @@ lwp_user_entry    PROC
     PUSH    {R0-R3}             ; push text&data addr.
 
     MOV     R0, SP              ; v1 = SP
-    BL      lwp_set_kernel_sp   ; lwp_set_kernel_sp(v1) ;sp寄存器指向stack,保存当前(kernel)SP的值
+    BL      lwt_set_kernel_sp   ; lwp_set_kernel_sp(v1) ;sp寄存器指向stack,保存当前(kernel)SP的值
 
-    ; set CPU to user-thread mode.
-    MRS     R2, CONTROL
-    ORR     R2, R2, #0x03       ; use PSP, user-thread mode.
-    MSR     CONTROL, R2
+    ; set CPU to user-thread mode.;在本版本中,如果不注释,在引起Pendcv中断时候会报HardFault
+    ;MRS     R2, CONTROL
+    ;ORR     R2, R2, #0x03       ; use PSP, user-thread mode.
+    ;MSR     CONTROL, R2
 
     POP     {R0-R3}             ; pop app address to R1.
     ; set data address.
@@ -71,7 +71,7 @@ SVC_Handler    PROC
     PUSH    {R0}            ; push api
 
     ; get kernel SP to R0.
-    BL lwp_get_kernel_sp
+    BL lwt_get_kernel_sp
 
     POP     {R2}             ; pop api to R2.
     POP     {R1}             ; pop app SP to R1.
@@ -111,7 +111,7 @@ svc_exit     PROC
 
     ; get user SP.
     PUSH    {R0}                    ; push result to SP.
-    BL      lwp_get_kernel_sp
+    BL      lwt_get_kernel_sp
     ldr     r3, [r0, #-4]
     pop {r0}
 

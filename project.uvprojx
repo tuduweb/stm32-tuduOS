@@ -492,6 +492,11 @@
               <FileType>1</FileType>
               <FilePath>.\applications\app.c</FilePath>
             </File>
+            <File>
+              <FileName>lwt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\lwt.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

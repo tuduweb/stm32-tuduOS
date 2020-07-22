@@ -21,6 +21,25 @@ static void syscall_app_entry(void *parameter)
     // }
 }
 
+
+void syscall_app_main(uint8_t argc, char **argv)
+{
+    //暂时无法测试,因为内核中的create没有运行在lwp下
+		//lwp_save_sp(1);
+    lwp_save_sp();
+
+    rt_kprintf("syscall APP test begin\n");
+    char txt[] = "syscall\n";
+    syscall(0xff, txt, sizeof(txt));
+    //syscall(1,1);
+    rt_kprintf("syscall APP test end\n");
+    // while(1)
+    // {
+    //   rt_kprintf("App on\n");
+    //   rt_thread_mdelay(2000);
+    // }
+}
+
 static rt_thread_t tid1 = RT_NULL;
 
 int syscall_thread(void)
