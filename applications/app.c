@@ -11,7 +11,7 @@ static void syscall_app_entry(void *parameter)
 
     rt_kprintf("syscall APP test begin\n");
     char txt[] = "syscall\n";
-    syscall(0xff, txt, sizeof(txt));
+    //syscall(0xff, txt, sizeof(txt));
     //syscall(1,1);
     rt_kprintf("syscall APP test end\n");
     // while(1)
