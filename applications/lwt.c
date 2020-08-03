@@ -80,7 +80,7 @@ static int lwt_argscopy(struct rt_lwt *lwt, int argc, char **argv)
 
     return 0;
 }
-
+#include "easyflash.h"
 static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr, size_t addr_size)
 {
     int fd;
@@ -129,13 +129,53 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
     }else{
         //fd >= 0
 
+        struct env_meta_data env;
+
         //ioctl
-        if(ioctl(fd, 0x0001, &lwt->text_entry) != RT_EOK)
+        if(ioctl(fd, 0x0002, &env) != RT_EOK)
         {
-            LOG_E("Can't find that [%s] text_entry!", filename);
+            LOG_E("Can't find that [%s] ENV!", filename);
             result = -RT_EEMPTY;
             goto _exit;
         }
+
+
+
+        //判断是否能XIP启动,无法XIP启动那么需要复制到RAM中
+
+        //lwp->text_size = RT_ALIGN(chunk.data_len_space, 4);
+        lwt->text_size = RT_ALIGN(env.value_len, 4);
+        rt_uint8_t * new_entry = (rt_uint8_t *)rt_malloc( lwt->text_size );//RT_MALLOC_ALGIN
+        rt_uint8_t * align_entry = (rt_uint8_t *)RT_ALIGN((int)new_entry, 4);
+
+        //new_entry = RT_ALIGN(new_entry);
+
+        if (new_entry == RT_NULL)
+        {
+            dbg_log(DBG_ERROR, "alloc text memory faild!\n");
+            result = -RT_ENOMEM;
+            goto _exit;
+        }
+        else
+        {
+            dbg_log(DBG_LOG, "lwp text malloc : %p, size: %d!\n", align_entry, lwt->text_size);
+        }
+
+        //复制内容
+        int nbytes = read(fd, align_entry, lwt->text_size);
+
+        if(nbytes != lwt->text_size)
+        {
+            result = -RT_EIO;
+            goto _exit;
+        }
+
+        lwt->text_entry = align_entry;
+
+
+        
+
+
         //在app里面第9位
         lwt->data_size = 0x400;//(uint8_t)*(lwt->text_entry + 9);//addr
         //申请数据空间

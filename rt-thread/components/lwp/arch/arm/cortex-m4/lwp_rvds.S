@@ -26,7 +26,7 @@
 lwp_user_entry    PROC
     EXPORT  lwp_user_entry
 
-    PUSH    {R0-R3}             ; push text&data addr.
+    PUSH    {R0-R3,LR}             ; push text&data addr.
 
     MOV     R0, SP              ; v1 = SP
     BL      lwt_set_kernel_sp   ; lwp_set_kernel_sp(v1) ;sp寄存器指向stack,保存当前(kernel)SP的值
@@ -36,7 +36,7 @@ lwp_user_entry    PROC
     ;ORR     R2, R2, #0x03       ; use PSP, user-thread mode.
     ;MSR     CONTROL, R2
 
-    POP     {R0-R3}             ; pop app address to R1.
+    POP     {R0-R3,LR}             ; pop app address to R1.
     ; set data address.
     MOV     R9, R2
 

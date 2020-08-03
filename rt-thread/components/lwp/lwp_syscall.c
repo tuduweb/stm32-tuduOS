@@ -219,6 +219,13 @@ int sys_notimpl(void)
     return -ENOSYS;
 }
 
+
+void bin_syscall_test(int cnt)
+{
+    rt_kprintf("syscall[0x21] %d\n",cnt);
+}
+
+
 const static void* func_table[] =
 {
     (void *)sys_exit,           // 0x01
@@ -259,6 +266,9 @@ const static void* func_table[] =
     SYSCALL_NET(socket),     // 0x1f
 
     (void *)select,          // 0x20
+
+    //自定义syscall
+    (void *)bin_syscall_test,// 0x21
 };
 
 const void *lwp_get_sys_api(rt_uint32_t number)

@@ -469,6 +469,7 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
         }
         break;
 
+    //查找入口
     case 0x0001:
         env_dev = (ef_env_dev_t)fd->data;
         if(env_dev)
@@ -490,7 +491,29 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
             
         }
         break;
-
+    
+    //查找入口变量
+    case 0x0002:
+        env_dev = (ef_env_dev_t)fd->data;
+        if(env_dev)
+        {
+            //那么find_env
+            //find_env(env_dev, file->path+1,)
+            env_meta_data_t env = args;
+            
+            if(find_env(fd->path + 1, env) == false)
+            {
+                return -ENOENT;
+            }
+            //查找start_addr
+            //把start_addr 放入 arg 返回
+            //*(uint32_t *)args = env.addr.value;
+            rt_kprintf("find ENV %s\n",env->name);
+            
+            return RT_EOK;
+            
+        }
+        break;
     
     default:
         //命令字错误
