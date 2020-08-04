@@ -484,7 +484,7 @@ int dfs_xipfs_ioctl(struct dfs_fd *fd, int cmd, void *args)
             //查找start_addr
             //把start_addr 放入 arg 返回
             //*(uint32_t *)args = env.addr.value;
-            uint32_t* entry = args; 
+            uint32_t* entry = args;
             *entry = (uint32_t)lwp_test_main;
             
             return RT_EOK;

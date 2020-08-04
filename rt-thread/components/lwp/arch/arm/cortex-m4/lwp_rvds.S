@@ -92,10 +92,10 @@ SVC_Handler    PROC
     MSR     PSP, R0             ; update SP, API is executed with kernel SP
 
     ; set to thread-privilege mode.
-    MRS     R3, CONTROL
-    BIC     R3, R3, #0x01
-    ORR     R3, R3, #0x02
-    MSR     CONTROL, R3
+    ;MRS     R3, CONTROL
+    ;BIC     R3, R3, #0x01
+    ;ORR     R3, R3, #0x02
+    ;MSR     CONTROL, R3
 
     POP     {LR}                ; 0xFFFFFFED
     ORR     LR, LR, #0x10       ;Thumb模式?

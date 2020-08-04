@@ -161,6 +161,8 @@ static int lwt_load(const char *filename, struct rt_lwt *lwt, uint8_t *load_addr
             dbg_log(DBG_LOG, "lwp text malloc : %p, size: %d!\n", align_entry, lwt->text_size);
         }
 
+        rt_kprintf("lwp text malloc : %p, size: %d!\n", align_entry, lwt->text_size);
+
         //复制内容
         int nbytes = read(fd, align_entry, lwt->text_size);
 
@@ -345,7 +347,33 @@ pid_t lwt_get_pid(void)
 
 void lwt_cleanup(rt_thread_t tid)
 {
-    //
+    struct rt_lwt *lwt;
+
+    dbg_log(DBG_INFO, "thread: %s, stack_addr: %08X\n", tid->name, tid->stack_addr);
+
+    lwt = (struct rt_lwt *)tid->lwp;
+
+    if (lwt->lwt_type == LWP_TYPE_DYN_ADDR)
+    {
+        dbg_log(DBG_INFO, "dynamic lwp\n");
+        if (lwt->text_entry)
+        {
+            dbg_log(DBG_LOG, "lwp text free: %p\n", lwt->text_entry);
+#ifdef RT_USING_CACHE
+            rt_free_align(lwt->text_entry);
+#else
+            rt_free(lwt->text_entry);
+#endif
+        }
+        if (lwt->data_entry)
+        {
+            dbg_log(DBG_LOG, "lwp data free: %p\n", lwt->data_entry);
+            rt_free(lwt->data_entry);
+        }
+    }
+
+
+    //还需要清 LWT
 }
 
 extern void lwp_user_entry(void *args, const void *text, void *data);
@@ -386,7 +414,7 @@ int lwt_execve(char *filename, int argc, char **argv, char **envp)
     }
     dbg_log(DBG_INFO, "lwt malloc : %p, size: %d!\n", lwt, sizeof(struct rt_lwt));
 
-    //执行申请内存操作
+    //执行清空内存操作
     rt_memset(lwt, 0, sizeof(*lwt));
 
     //拷贝入口参数到 lwt->args
@@ -455,12 +483,31 @@ rt_thread_t sys_thread_create(const char *name,
     struct rt_thread *thread = NULL;
     struct rt_lwp *lwp = NULL;
 
+    //系统调用的是LWP进程
+    struct rt_lwt *lwt;
+
+    //entry要改成user_entry(即程序运行在用户态)
     thread = rt_thread_create(name, entry, parameter, stack_size, priority, tick);
 
     if(thread != NULL)
     {
+        //CleanUp里面写了清Text_entry,所以需要判断引用次数才可以
+        //thread->cleanup = lwt_cleanup;
+        thread->lwp = rt_thread_self()->lwp;
+
+    }
+
+    //lwt->t_grp.next->prev = &thread->
+
+    return thread;
+}
+
+rt_err_t sys_thread_startup(rt_thread_t thread)
+{
+    if(thread == NULL)
+    {
         //
     }
 
-    return thread;
+    return rt_thread_startup(thread);
 }

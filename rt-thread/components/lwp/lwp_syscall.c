@@ -271,6 +271,18 @@ const static void* func_table[] =
     (void *)bin_syscall_test,// 0x21
 };
 
+
+extern rt_thread_t sys_thread_create(const char *name, void (*entry)(void *parameter), void *parameter, rt_uint32_t stack_size, rt_uint8_t  priority, rt_uint32_t tick);
+extern rt_err_t sys_thread_startup(rt_thread_t thread);
+//浮动一下,从0x60开始吧
+const static void* func_table2[] =
+{
+    (void *)sys_thread_create,//0x60
+    (void *)sys_thread_startup,//0x61
+};
+
+
+
 const void *lwp_get_sys_api(rt_uint32_t number)
 {
     const void *func = (const void*)sys_notimpl;
@@ -278,6 +290,14 @@ const void *lwp_get_sys_api(rt_uint32_t number)
     if (number == 0xff)
     {
         func = (void *)sys_log;
+    }
+    else if(number >= 0x60)
+    {
+        number -= 0x60;
+        if (number < sizeof(func_table2)/sizeof(func_table2[0]))
+        {
+            func = func_table2[number];
+        }
     }
     else
     {
