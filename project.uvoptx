@@ -157,11 +157,6 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-<<<<<<< HEAD
-          <LineNumber>506</LineNumber>
-          <EnabledFlag>0</EnabledFlag>
-          <Address>134259048</Address>
-=======
           <LineNumber>29</LineNumber>
           <EnabledFlag>1</EnabledFlag>
           <Address>134218840</Address>
@@ -213,7 +208,6 @@
           <LineNumber>314</LineNumber>
           <EnabledFlag>1</EnabledFlag>
           <Address>134292640</Address>
->>>>>>> 8d415dc5f4a7b79fed4ed3dad22f2ae145f26dd9
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
@@ -222,11 +216,7 @@
           <BreakIfRCount>1</BreakIfRCount>
           <Filename>applications\xipfs.c</Filename>
           <ExecCommand></ExecCommand>
-<<<<<<< HEAD
-          <Expression>\\rt_thread\applications/xipfs.c\506</Expression>
-=======
           <Expression>\\rt_thread\applications/lwt.c\314</Expression>
->>>>>>> 8d415dc5f4a7b79fed4ed3dad22f2ae145f26dd9
         </Bp>
       </Breakpoint>
       <WatchWindow1>
@@ -275,11 +265,7 @@
         <Mm>
           <WinNumber>1</WinNumber>
           <SubType>0</SubType>
-<<<<<<< HEAD
-          <ItemText>0x200082E8</ItemText>
-=======
           <ItemText>0X20008658</ItemText>
->>>>>>> 8d415dc5f4a7b79fed4ed3dad22f2ae145f26dd9
           <AccSizeX>0</AccSizeX>
         </Mm>
       </MemoryWindow1>
