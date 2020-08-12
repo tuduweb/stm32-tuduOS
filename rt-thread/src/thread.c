@@ -205,6 +205,13 @@ static rt_err_t _rt_thread_init(struct rt_thread *thread,
     thread->lwp = NULL;
 #endif
 
+    //更新 20200805 进程结构链表
+    rt_list_t* list_t;
+    list_t = &thread->sibling;
+    list_t->next = list_t;
+    list_t->prev = list_t;
+
+
     RT_OBJECT_HOOK_CALL(rt_thread_inited_hook, (thread));
 
     

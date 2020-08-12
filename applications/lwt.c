@@ -372,6 +372,8 @@ void lwt_cleanup(rt_thread_t tid)
         }
     }
 
+    //rt_free(lwt);
+
 
     //还需要清 LWT
 }
@@ -430,9 +432,13 @@ int lwt_execve(char *filename, int argc, char **argv, char **envp)
         return -RT_ERROR;
     }
 
+    //构建线程FD表
     int fd = libc_stdio_get_console();
+    //get然后put是为了ref_count不增加
     struct dfs_fd *d = fd_get(fd);
     fd_put(d);
+    fd = fd - DFS_FD_OFFSET;
+
 
     char* name = strrchr(filename, '/');
     rt_thread_t thread = rt_thread_create( name ? name + 1: filename, lwt_thread_entry, NULL, 0x400, 29, 200);
@@ -443,7 +449,7 @@ int lwt_execve(char *filename, int argc, char **argv, char **envp)
 
     int IRID = rt_hw_interrupt_disable();
     
-    /* 构造相互关系 */
+    /* 如果当前是LWP进程,那么构造相互关系 */
 
     struct rt_lwt *current_lwt;
     current_lwt = rt_thread_self()->lwp;
@@ -456,7 +462,11 @@ int lwt_execve(char *filename, int argc, char **argv, char **envp)
     }
 
     thread->lwp = lwt;
-    //lwt->t_grp.next->prev = &thread->
+
+    lwt->t_grp.next->prev = &thread->sibling;
+    thread->sibling.next = lwt->t_grp.next;
+    lwt->t_grp.next = &thread->sibling;
+    thread->sibling.prev = &lwt->t_grp;
 
     rt_hw_interrupt_enable(IRID);
 

@@ -157,66 +157,34 @@
         <Bp>
           <Number>0</Number>
           <Type>0</Type>
-          <LineNumber>29</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134218840</Address>
+          <LineNumber>506</LineNumber>
+          <EnabledFlag>0</EnabledFlag>
+          <Address>134259056</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>1</BreakIfRCount>
-          <Filename>rt-thread\components\lwp\arch\arm\cortex-m4\lwp_rvds.S</Filename>
+          <Filename>applications\xipfs.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\rt_thread\rt-thread/components/lwp/arch/arm/cortex-m4/lwp_rvds.S\29</Expression>
+          <Expression>\\rt_thread\applications/xipfs.c\506</Expression>
         </Bp>
         <Bp>
           <Number>1</Number>
           <Type>0</Type>
-          <LineNumber>16</LineNumber>
+          <LineNumber>437</LineNumber>
           <EnabledFlag>1</EnabledFlag>
-          <Address>134341906</Address>
+          <Address>134292058</Address>
           <ByteObject>0</ByteObject>
           <HtxType>0</HtxType>
           <ManyObjects>0</ManyObjects>
           <SizeOfObject>0</SizeOfObject>
           <BreakByAccess>0</BreakByAccess>
           <BreakIfRCount>1</BreakIfRCount>
-          <Filename>.\applications\app.c</Filename>
+          <Filename>.\applications\lwt.c</Filename>
           <ExecCommand></ExecCommand>
-          <Expression>\\rt_thread\applications/app.c\16</Expression>
-        </Bp>
-        <Bp>
-          <Number>2</Number>
-          <Type>0</Type>
-          <LineNumber>447</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134291768</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>applications\xipfs.c</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression>\\rt_thread\applications/xipfs.c\447</Expression>
-        </Bp>
-        <Bp>
-          <Number>3</Number>
-          <Type>0</Type>
-          <LineNumber>314</LineNumber>
-          <EnabledFlag>1</EnabledFlag>
-          <Address>134292640</Address>
-          <ByteObject>0</ByteObject>
-          <HtxType>0</HtxType>
-          <ManyObjects>0</ManyObjects>
-          <SizeOfObject>0</SizeOfObject>
-          <BreakByAccess>0</BreakByAccess>
-          <BreakIfRCount>1</BreakIfRCount>
-          <Filename>applications\xipfs.c</Filename>
-          <ExecCommand></ExecCommand>
-          <Expression>\\rt_thread\applications/lwt.c\314</Expression>
+          <Expression>\\rt_thread\applications/lwt.c\437</Expression>
         </Bp>
       </Breakpoint>
       <WatchWindow1>
@@ -260,12 +228,17 @@
           <WinNumber>1</WinNumber>
           <ItemText>(rt_thread_t)0x200089FC</ItemText>
         </Ww>
+        <Ww>
+          <count>8</count>
+          <WinNumber>1</WinNumber>
+          <ItemText>_fdtab</ItemText>
+        </Ww>
       </WatchWindow1>
       <MemoryWindow1>
         <Mm>
           <WinNumber>1</WinNumber>
           <SubType>0</SubType>
-          <ItemText>0X20008658</ItemText>
+          <ItemText>0x200082E8</ItemText>
           <AccSizeX>0</AccSizeX>
         </Mm>
       </MemoryWindow1>
@@ -331,7 +304,7 @@
 
   <Group>
     <GroupName>Kernel</GroupName>
-    <tvExp>1</tvExp>
+    <tvExp>0</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
@@ -1331,7 +1304,7 @@
 
   <Group>
     <GroupName>finsh</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>

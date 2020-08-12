@@ -102,7 +102,7 @@ int dfs_xipfs_mount(struct dfs_filesystem *fs,
     /* 如果没有找到挂载表 那么在这里新建挂载表 */
 
     //申请地址空间
-    root_dirent_t root = rt_calloc( 1, sizeof(root_dirent_t));
+    root_dirent_t root = rt_calloc( 1, sizeof(struct root_dirent));//更正，防止溢出!!
     //没申请到
     if(root == RT_NULL)
         return RT_ERROR;
